@@ -3,6 +3,17 @@
  */
 
 import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
   Body,
   Controller,
   Delete,
@@ -25,8 +36,11 @@ import { RegisterUserDto } from '../dto/register-user.dto';
 import { PaginationQueryDto } from '../../../../../shared/contracts/http/pagination-query.dto';
 import { JwtAuthGuard } from '../../../auth/presentation/guards/jwt-auth.guard';
 import { UserNotFoundException } from '../../../shared/domain/exceptions';
+import { UserResponseDto } from '../dto/user-response.dto';
+import { PaginatedUsersResponseDto } from '../dto/paginated-users-response.dto';
 
-@Controller('api/v1/users')
+@ApiTags('Users')
+@Controller({ path: 'users', version: '1' })
 export class UsersController {
   constructor(
     private readonly registerUserUseCase: RegisterUserUseCase,
@@ -37,6 +51,9 @@ export class UsersController {
   ) {}
 
   @Post()
+  @ApiOperation({ summary: 'Register a new user' })
+  @ApiBody({ type: RegisterUserDto })
+  @ApiCreatedResponse({ type: UserResponseDto })
   async register(@Body() body: RegisterUserDto) {
     const user = await this.registerUserUseCase.execute(body);
 
@@ -53,12 +70,21 @@ export class UsersController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'List users with pagination' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ type: PaginatedUsersResponseDto })
   async getPaginated(@Query() query: PaginationQueryDto) {
     return this.getPaginatedUsersUseCase.execute(query.page, query.limit);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Get a user by id' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: UserResponseDto })
   async getById(@Param('id', new ParseUUIDPipe()) id: string) {
     const user = await this.getUserByIdUseCase.execute(id);
 
@@ -80,12 +106,20 @@ export class UsersController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Soft delete a user' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNoContentResponse()
   async delete(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.deleteUserUseCase.execute(id);
   }
 
   @Patch(':id/restore')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Restore a soft deleted user' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: UserResponseDto })
   async restore(@Param('id', new ParseUUIDPipe()) id: string) {
     const user = await this.restoreUserUseCase.execute(id);
 

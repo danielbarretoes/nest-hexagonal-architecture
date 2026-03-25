@@ -1,18 +1,13 @@
-import 'dotenv/config';
 import { Client } from 'pg';
 import { DataSource } from 'typeorm';
 import { createAppDataSource } from '../../src/config/database/data-source';
+import { loadEnvironment } from '../../src/config/env/load-env';
 
-export const TEST_TABLES = ['members', 'organizations', 'users'] as const;
+export const TEST_TABLES = ['http_logs', 'members', 'organizations', 'users'] as const;
 export const RLS_RUNTIME_ROLE = 'hexagonal_app_runtime';
 
 export function useTestDatabaseEnvironment(): void {
-  process.env.NODE_ENV = 'test';
-  process.env.DB_HOST = process.env.TEST_DB_HOST ?? process.env.DB_HOST;
-  process.env.DB_PORT = process.env.TEST_DB_PORT ?? process.env.DB_PORT;
-  process.env.DB_USERNAME = process.env.TEST_DB_USERNAME ?? process.env.DB_USERNAME;
-  process.env.DB_PASSWORD = process.env.TEST_DB_PASSWORD ?? process.env.DB_PASSWORD;
-  process.env.DB_DATABASE = process.env.TEST_DB_DATABASE ?? process.env.DB_DATABASE;
+  loadEnvironment('test');
   process.env.DB_SYNC = 'false';
   process.env.DB_DROP_SCHEMA = 'false';
   process.env.DB_MIGRATIONS_RUN = 'false';

@@ -20,15 +20,22 @@ That means:
 - `application` can use `domain`
 - `domain` must not know Nest, TypeORM, Express, or PostgreSQL
 
-## 2. Bounded Context And Features
+## 2. Bounded Contexts And Features
 
-This template currently has one bounded context: `iam`.
+This template currently has two bounded contexts:
+
+- `iam`
+- `observability`
 
 Inside IAM, these are the current features:
 
 - `auth`
 - `users`
 - `organizations`
+
+Inside observability, the current feature is:
+
+- `http-logs`
 
 And this is the IAM shared kernel:
 
@@ -75,6 +82,8 @@ Examples:
 
 - IAM-specific exceptions
 - IAM-specific technical contracts
+
+There is no `src/modules/observability/shared` yet because the current observability scope has only one feature.
 
 ## 4. Current Feature Shape
 
@@ -220,10 +229,23 @@ For a typical request:
 1. tracing middleware adds `x-trace-id`
 2. controller validates DTO
 3. JWT guard authenticates request
-4. tenant interceptor opens request context
+4. tenant interceptor validates the effective tenant against real membership and then opens request context
 5. use case runs
 6. repository adapter talks to PostgreSQL
 7. exceptions become Problem Details JSON
+8. HTTP logs are persisted for both success and error responses
+
+The public API path shape currently comes from Nest native URI versioning:
+
+- global prefix: `api`
+- versioning type: `URI`
+- current version: `v1`
+
+That means controllers define `path` and `version`, and Nest exposes routes like:
+
+- `/api/v1/users`
+- `/api/v1/auth/login`
+- `/api/v1/http-logs`
 
 ## 9. Multi-Tenancy And RLS
 
@@ -233,9 +255,17 @@ How it works:
 
 - PostgreSQL migration enables RLS on `members`
 - policies depend on `app.current_organization_id`
+- request lifecycle validates the effective tenant before it is stored in request context
 - repository code opens a transaction
 - repository code sets local DB role and session setting
 - the database enforces tenant filtering
+
+For observability reads:
+
+- `http_logs` read endpoints require authentication
+- the caller must send `x-organization-id`
+- the caller must be a privileged member of that tenant (`owner`, `admin`, or `manager`)
+- repository filtering for `http_logs` uses the validated effective tenant from request context, not the raw header value
 
 Important:
 
@@ -258,11 +288,70 @@ Pattern:
 - domain entity exposes `softDelete()` and `restore()`
 - TypeORM entity uses `DeleteDateColumn`
 - repository uses `softDelete()` and `restore()`
+
+## 11. Database And Migration Workflow
+
+Hexagonal architecture does not remove the need for disciplined database lifecycle management.
+
+In this template:
+
+- normal runtime uses `.env`
+- e2e tests use `.env.test`
+- schema creation and evolution should happen through migrations
+
+If you need the operational flow, see:
+
+- [Database Workflow](/Users/danielbarreto/Desktop/Code/hexagonal/docs/database-workflow.md)
 - API exposes delete/restore endpoints when relevant
 
 If you add soft delete to another aggregate, keep that same pattern.
 
-## 11. Adding A New Feature
+## 12. Shared Review
+
+Current review of what belongs where:
+
+Keep in global `shared`:
+
+- generic pagination contracts
+- generic pagination domain primitive
+- base domain exception
+
+Keep in `modules/iam/shared`:
+
+- IAM exceptions
+- IAM password hashing contract
+
+Keep in `common`, not `shared`:
+
+- authenticated request/user payload typing
+- trace and tenant request lifecycle utilities
+- RFC 7807 HTTP mapping
+
+Do not move feature response DTOs into shared unless they become genuinely cross-context contracts.
+
+Examples that should stay feature-local:
+
+- `UserResponseDto`
+- `OrganizationResponseDto`
+- `HttpLogResponseDto`
+
+## 13. Strictness Verdict
+
+Current verdict:
+
+- yes, the project still maintains a strict hexagonal direction overall
+- domain remains free of Nest and TypeORM
+- application still orchestrates through ports
+- infrastructure still holds ORM adapters and technical implementations
+- presentation still owns HTTP controllers, DTOs, guards, and middleware concerns
+- the project now includes an architecture test suite that checks key dependency rules beyond the ESLint heuristic
+
+Known nuance:
+
+- the ESLint rule is an enforcement aid, not a proof system
+- cross-feature technical sharing is intentionally narrow and currently limited to shared kernel, common technical concerns, guards, and port contracts
+
+## 14. Adding A New Feature
 
 Use this order.
 

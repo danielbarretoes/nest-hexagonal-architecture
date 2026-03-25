@@ -26,8 +26,8 @@ export const createDatabaseOptions = (): DataSourceOptions => {
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_DATABASE || 'hexagonal_db',
-    entities: [...TYPEORM_ENTITIES],
-    migrations: [...TYPEORM_MIGRATIONS],
+    entities: TYPEORM_ENTITIES,
+    migrations: TYPEORM_MIGRATIONS,
 
     // Keep synchronize as an explicit escape hatch for quick local spikes only.
     synchronize: !migrationsRun && !isProduction && process.env.DB_SYNC === 'true',

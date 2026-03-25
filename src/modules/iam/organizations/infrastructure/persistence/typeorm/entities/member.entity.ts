@@ -28,14 +28,14 @@ export class MemberTypeOrmEntity {
   userId!: string;
 
   @ManyToOne(() => UserTypeOrmEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'userId' })
+  @JoinColumn({ name: 'user_id' })
   user!: UserTypeOrmEntity;
 
   @Column('uuid')
   organizationId!: string;
 
   @ManyToOne(() => OrganizationTypeOrmEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'organizationId' })
+  @JoinColumn({ name: 'organization_id' })
   organization!: OrganizationTypeOrmEntity;
 
   @Column({

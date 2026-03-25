@@ -3,6 +3,17 @@
  */
 
 import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
   Controller,
   Delete,
   Get,
@@ -25,8 +36,11 @@ import { CreateOrganizationDto } from '../dto/create-organization.dto';
 import { PaginationQueryDto } from '../../../../../shared/contracts/http/pagination-query.dto';
 import { JwtAuthGuard } from '../../../auth/presentation/guards/jwt-auth.guard';
 import { OrganizationNotFoundException } from '../../../shared/domain/exceptions';
+import { OrganizationResponseDto } from '../dto/organization-response.dto';
+import { PaginatedOrganizationsResponseDto } from '../dto/paginated-organizations-response.dto';
 
-@Controller('api/v1/organizations')
+@ApiTags('Organizations')
+@Controller({ path: 'organizations', version: '1' })
 export class OrganizationsController {
   constructor(
     private readonly createOrganizationUseCase: CreateOrganizationUseCase,
@@ -38,6 +52,10 @@ export class OrganizationsController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Create a new organization' })
+  @ApiBody({ type: CreateOrganizationDto })
+  @ApiCreatedResponse({ type: OrganizationResponseDto })
   async create(@Body() body: CreateOrganizationDto) {
     const organization = await this.createOrganizationUseCase.execute(body);
 
@@ -51,12 +69,21 @@ export class OrganizationsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'List organizations with pagination' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ type: PaginatedOrganizationsResponseDto })
   async getPaginated(@Query() query: PaginationQueryDto) {
     return this.getPaginatedOrganizationsUseCase.execute(query.page, query.limit);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Get an organization by id' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: OrganizationResponseDto })
   async getById(@Param('id', new ParseUUIDPipe()) id: string) {
     const organization = await this.getOrganizationByIdUseCase.execute(id);
 
@@ -75,12 +102,20 @@ export class OrganizationsController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Soft delete an organization' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNoContentResponse()
   async delete(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.deleteOrganizationUseCase.execute(id);
   }
 
   @Patch(':id/restore')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Restore a soft deleted organization' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: OrganizationResponseDto })
   async restore(@Param('id', new ParseUUIDPipe()) id: string) {
     const organization = await this.restoreOrganizationUseCase.execute(id);
 

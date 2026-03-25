@@ -8,6 +8,7 @@ import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from
 import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
 import { DomainException } from '../../../shared/domain/exceptions';
+import type { HttpLogRequest } from '../http-log-context';
 import {
   ProblemDetail,
   ValidationProblemDetail,
@@ -21,7 +22,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const request = ctx.getRequest<HttpLogRequest>();
 
     const traceId = (request.headers['x-trace-id'] as string) || randomUUID();
     const instance = request.url;
@@ -53,6 +54,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         instance,
       );
     }
+
+    request.httpLogError = this.extractHttpLogError(exception);
 
     response.status(status).json(problemDetail);
   }
@@ -246,8 +249,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       ORGANIZATION_NOT_FOUND: HttpStatus.NOT_FOUND,
       MEMBER_NOT_FOUND: HttpStatus.NOT_FOUND,
       ROLE_NOT_FOUND: HttpStatus.NOT_FOUND,
+      HTTP_LOG_NOT_FOUND: HttpStatus.NOT_FOUND,
     };
 
     return codeMap[exception.code] ?? HttpStatus.UNPROCESSABLE_ENTITY;
+  }
+
+  private extractHttpLogError(exception: unknown): { message: string; stack: string | null } {
+    if (exception instanceof Error) {
+      return {
+        message: exception.message,
+        stack: exception.stack ?? null,
+      };
+    }
+
+    return {
+      message: 'Unknown error',
+      stack: null,
+    };
   }
 }

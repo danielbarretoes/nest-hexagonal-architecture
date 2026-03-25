@@ -5,8 +5,10 @@ Reusable NestJS IAM foundation built with a strict hexagonal style.
 It currently includes:
 
 - `users`, `organizations`, and `auth` as explicit IAM features
+- `http_logs` as an explicit observability feature
 - strict `domain -> application -> infrastructure/presentation` boundaries
 - RFC 7807 problem details with `traceId`
+- Swagger / OpenAPI documentation
 - TypeORM adapters, PostgreSQL migrations, and real e2e tests
 - JWT auth with password hashing
 - soft delete + restore for `users` and `organizations`
@@ -30,11 +32,13 @@ src/
 ├── database/
 │   └── migrations/
 ├── modules/
-│   └── iam/
-│       ├── auth/
-│       ├── organizations/
-│       ├── users/
-│       └── shared/                 # shared kernel inside IAM
+│   ├── iam/
+│   │   ├── auth/
+│   │   ├── organizations/
+│   │   ├── users/
+│   │   └── shared/                 # shared kernel inside IAM
+│   └── observability/
+│       └── http-logs/
 └── shared/                         # global shared kernel
     ├── contracts/
     └── domain/
@@ -104,6 +108,32 @@ test/
 - HTTP filters, tracing, tenant context, interceptors, database subscribers
 - never business rules
 
+### Current shared review
+
+What already belongs in global `shared` and should stay there:
+
+- pagination primitives
+- generic pagination DTO contracts
+- base domain exception
+
+What already belongs in `modules/iam/shared` and should stay there:
+
+- IAM-specific domain exceptions
+- password hasher contract reused by `auth` and `users`
+
+What should not move to `shared` today:
+
+- `UserResponseDto`, `OrganizationResponseDto`, `HttpLogResponseDto`
+- feature-specific query DTOs
+- `http_logs` repository filters
+- transport-level authenticated request types
+
+Why:
+
+- response DTOs are feature API contracts, not reusable domain/kernel concepts
+- authenticated request typing is technical HTTP plumbing, so it belongs in `common/http`
+- feature-specific filters should stay close to the feature they serve
+
 ## Current IAM Design
 
 ### Users
@@ -135,7 +165,18 @@ test/
 - tenant-scoped role value object
 - PostgreSQL RLS on `members`
 
+### HTTP Logs
+
+- captures success and error requests
+- stores request body, query, params, response, error message, error trace, duration, traceId
+- stores `userId` and `organizationId` when available
+- supports lookup by `id`, `traceId`, and paginated filtering by `createdFrom`, `createdTo`, and `statusFamily`
+
 ## Database Workflow
+
+Detailed guide:
+
+- [Database Workflow](/Users/danielbarreto/Desktop/Code/hexagonal/docs/database-workflow.md)
 
 Commands:
 
@@ -146,9 +187,41 @@ Commands:
 Key rules:
 
 - prefer migrations over `synchronize`
+- the repository currently keeps a single baseline migration instead of a historical migration chain
 - `DB_MIGRATIONS_RUN=true` lets runtime bootstrap from migrations
 - e2e tests rebuild schema from migrations
 - RLS currently applies to `members`, which is the tenant-scoped table in the current model
+
+### Environment files
+
+- `.env` is the default runtime configuration for local development and normal app startup
+- `.env.test` is loaded only when `NODE_ENV=test`
+- `.env` must not contain test database credentials
+- `.env.test` is the only place for test database credentials
+- e2e tests use `.env.test`, so they should never need to rewrite the normal development database settings
+- the bootstrap log prints the active environment and database name to make this visible at startup
+- if Nest starts but no tables exist, run `npm run db:migrate`
+- simple entity properties rely on `SnakeNamingStrategy`, so explicit column `name` mappings should only be used when they add real value
+
+### Cloning Or Resetting The Database
+
+For a fresh clone or a full local reset:
+
+1. create the database
+2. run `npm run db:migrate`
+3. start the app
+
+This template intentionally uses a single baseline migration for the current schema, so you do not need an old migration history to bootstrap the project.
+
+If you had an older local database created from pre-squash migrations, reset that database and run the baseline migration again.
+
+## Swagger
+
+- Swagger UI is available at `/docs` when `SWAGGER_ENABLED=true`
+- default behavior is enabled outside production
+- `.env` enables Swagger for local development
+- `.env.test` disables Swagger for e2e to keep the test surface minimal
+- the API uses Nest native URI versioning, so current endpoints are exposed under `/api/v1/...`
 
 ## Quality Gates
 
@@ -177,6 +250,14 @@ When adding a new IAM feature such as `roles`, `invitations`, or `sessions`, fol
 8. Add migration if schema changes
 9. Add unit tests and e2e coverage
 
+If the new feature is not business-domain specific, do not force it into IAM.
+
+Examples:
+
+- `sessions` likely belongs in IAM
+- `http_logs` belongs in `observability`
+- technical request/response helpers likely belong in `common`
+
 Do not:
 
 - import Nest or TypeORM in domain
@@ -202,8 +283,11 @@ Checklist:
 ## Multi-Tenancy Rules
 
 - tenant context comes from request lifecycle
+- the effective tenant is validated against real membership before request-scoped tenant context is opened
 - `members` uses PostgreSQL RLS with `app.current_organization_id`
 - repository code sets tenant context before tenant-scoped member queries
+- `http_logs` read endpoints require an authenticated user plus `x-organization-id`
+- `http_logs` reads are restricted to privileged tenant members (`owner`, `admin`, `manager`)
 - if you add a new tenant-scoped table, extend migrations and repository code with the same pattern
 
 ## Error Handling Rules
@@ -231,4 +315,17 @@ If you want to push this template further:
 - add richer value objects such as `Email` and `OrganizationName`
 - add refresh tokens / sessions
 - add more tenant-scoped tables with RLS
-- add architecture tests beyond ESLint if desired
+- harden authorization policies per feature as more bounded contexts appear
+
+## Architecture Verdict
+
+Current assessment:
+
+- the project still follows a strict hexagonal style overall
+- the separation between `common`, global `shared`, bounded-context `shared`, and feature folders is coherent
+- the main reusable technical contract that was duplicated, authenticated request typing, now lives in `common/http`
+- the project now also includes an architecture test suite in `test/hexagonal-architecture.spec.ts` to complement ESLint
+
+Residual caveat:
+
+- the ESLint rule is still heuristic, but it is now backed by an explicit architecture test suite

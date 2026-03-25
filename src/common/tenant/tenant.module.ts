@@ -6,9 +6,11 @@
 
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { OrganizationsModule } from '../../modules/iam/organizations/organizations.module';
 import { TenantInterceptor } from './tenant.interceptor';
 
 @Module({
+  imports: [OrganizationsModule],
   providers: [
     TenantInterceptor,
     {

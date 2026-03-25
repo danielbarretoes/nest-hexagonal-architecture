@@ -18,6 +18,8 @@ import { ORGANIZATION_REPOSITORY_TOKEN } from './application/ports/organization-
 import { MEMBER_REPOSITORY_TOKEN } from './application/ports/member-repository.token';
 import { OrganizationsController } from './presentation/controllers/organizations.controller';
 import { AuthSupportModule } from '../auth/auth-support.module';
+import { TenantMembershipAccessAdapter } from './infrastructure/adapters/tenant-membership-access.adapter';
+import { TENANT_ACCESS_PORT } from '../../../shared/application/ports/tenant-access.token';
 
 @Module({
   imports: [
@@ -28,8 +30,10 @@ import { AuthSupportModule } from '../auth/auth-support.module';
   providers: [
     { provide: ORGANIZATION_REPOSITORY_TOKEN, useClass: OrganizationTypeOrmRepository },
     { provide: MEMBER_REPOSITORY_TOKEN, useClass: MemberTypeOrmRepository },
+    { provide: TENANT_ACCESS_PORT, useClass: TenantMembershipAccessAdapter },
     OrganizationTypeOrmRepository,
     MemberTypeOrmRepository,
+    TenantMembershipAccessAdapter,
     CreateOrganizationUseCase,
     GetOrganizationByIdUseCase,
     GetPaginatedOrganizationsUseCase,
@@ -39,6 +43,7 @@ import { AuthSupportModule } from '../auth/auth-support.module';
   exports: [
     ORGANIZATION_REPOSITORY_TOKEN,
     MEMBER_REPOSITORY_TOKEN,
+    TENANT_ACCESS_PORT,
     CreateOrganizationUseCase,
     GetOrganizationByIdUseCase,
     GetPaginatedOrganizationsUseCase,

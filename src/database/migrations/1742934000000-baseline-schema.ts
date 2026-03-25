@@ -4,8 +4,8 @@ const MEMBERSHIP_ROLE_CHECK = "'owner', 'admin', 'manager', 'member', 'guest'";
 const APP_RUNTIME_ROLE = 'hexagonal_app_runtime';
 const TENANT_SETTING = "nullif(current_setting('app.current_organization_id', true), '')::uuid";
 
-export class InitialIamSchema1742931000000 implements MigrationInterface {
-  name = 'InitialIamSchema1742931000000';
+export class BaselineSchema1742934000000 implements MigrationInterface {
+  name = 'BaselineSchema1742934000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
@@ -49,6 +49,27 @@ export class InitialIamSchema1742931000000 implements MigrationInterface {
       )
     `);
 
+    await queryRunner.query(`
+      CREATE TABLE "http_logs" (
+        "id" uuid NOT NULL,
+        "method" character varying(16) NOT NULL,
+        "path" character varying(512) NOT NULL,
+        "status_code" integer NOT NULL,
+        "request_body" jsonb,
+        "query_params" jsonb,
+        "route_params" jsonb,
+        "response_body" jsonb,
+        "error_message" text,
+        "error_trace" text,
+        "duration_ms" integer NOT NULL,
+        "user_id" uuid,
+        "organization_id" uuid,
+        "trace_id" character varying(128),
+        "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT "pk_http_logs_id" PRIMARY KEY ("id")
+      )
+    `);
+
     await queryRunner.query(
       `CREATE INDEX "idx_members_organization" ON "members" ("organization_id")`,
     );
@@ -57,6 +78,17 @@ export class InitialIamSchema1742931000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX "idx_organizations_deleted_at" ON "organizations" ("deleted_at")`,
     );
+    await queryRunner.query(
+      `CREATE INDEX "idx_http_logs_created_at" ON "http_logs" ("created_at")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "idx_http_logs_status_code" ON "http_logs" ("status_code")`,
+    );
+    await queryRunner.query(`CREATE INDEX "idx_http_logs_user_id" ON "http_logs" ("user_id")`);
+    await queryRunner.query(
+      `CREATE INDEX "idx_http_logs_organization_id" ON "http_logs" ("organization_id")`,
+    );
+    await queryRunner.query(`CREATE INDEX "idx_http_logs_trace_id" ON "http_logs" ("trace_id")`);
 
     await queryRunner.query(`
       DO $$
@@ -70,7 +102,7 @@ export class InitialIamSchema1742931000000 implements MigrationInterface {
 
     await queryRunner.query(`GRANT USAGE ON SCHEMA public TO ${APP_RUNTIME_ROLE}`);
     await queryRunner.query(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "users", "organizations", "members" TO ${APP_RUNTIME_ROLE}`,
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "users", "organizations", "members", "http_logs" TO ${APP_RUNTIME_ROLE}`,
     );
     await queryRunner.query(`GRANT ${APP_RUNTIME_ROLE} TO CURRENT_USER`);
 
@@ -115,10 +147,17 @@ export class InitialIamSchema1742931000000 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "members" DISABLE ROW LEVEL SECURITY`);
     await queryRunner.query(`REVOKE ${APP_RUNTIME_ROLE} FROM CURRENT_USER`);
 
+    await queryRunner.query(`DROP INDEX IF EXISTS "idx_http_logs_trace_id"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "idx_http_logs_organization_id"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "idx_http_logs_user_id"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "idx_http_logs_status_code"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "idx_http_logs_created_at"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_users_deleted_at"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_organizations_deleted_at"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_members_user"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_members_organization"`);
+
+    await queryRunner.query(`DROP TABLE IF EXISTS "http_logs"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "members"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "organizations"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "users"`);

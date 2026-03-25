@@ -13,13 +13,7 @@ import {
 import { Request } from 'express';
 import type { JwtTokenPort } from '../../domain/ports';
 import { JWT_TOKEN_PORT } from '../../application/ports/jwt-token.token';
-
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    userId: string;
-    email: string;
-  };
-}
+import type { AuthenticatedHttpRequest } from '../../../../../common/http/authenticated-request';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -29,7 +23,7 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const request = context.switchToHttp().getRequest<AuthenticatedHttpRequest>();
     const token = this.extractTokenFromHeader(request);
 
     if (!token) {
