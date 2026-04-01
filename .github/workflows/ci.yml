@@ -58,6 +58,34 @@ jobs:
       - name: Run quality gates
         run: npm run test:ci
 
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          node <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require('node:fs');
+          const path = 'coverage/coverage-summary.json';
+          if (!fs.existsSync(path)) {
+            console.log('## Coverage');
+            console.log('');
+            console.log('Coverage summary was not generated.');
+            process.exit(0);
+          }
+          const summary = JSON.parse(fs.readFileSync(path, 'utf8')).total;
+          const rows = [
+            ['Statements', summary.statements],
+            ['Branches', summary.branches],
+            ['Functions', summary.functions],
+            ['Lines', summary.lines],
+          ];
+          console.log('## Coverage');
+          console.log('');
+          console.log('| Metric | Percent | Covered / Total |');
+          console.log('| --- | ---: | ---: |');
+          for (const [label, metric] of rows) {
+            console.log(`| ${label} | ${metric.pct}% | ${metric.covered} / ${metric.total} |`);
+          }
+          EOF
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4

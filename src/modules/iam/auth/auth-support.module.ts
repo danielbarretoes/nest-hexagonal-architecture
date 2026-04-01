@@ -8,8 +8,8 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AUTH_RUNTIME_CONFIG } from '../../../config/auth/auth-runtime.config';
-import { JWT_CONFIG } from '../../../config/auth/jwt.config';
+import { getAuthRuntimeConfig } from '../../../config/auth/auth-runtime.config';
+import { getJwtConfig } from '../../../config/auth/jwt.config';
 import { JWT_TOKEN_PORT } from './application/ports/jwt-token.token';
 import { PASSWORD_HASHER_PORT } from './application/ports/password-hasher.token';
 import { AUTH_SESSION_REPOSITORY_TOKEN } from './application/ports/auth-session-repository.token';
@@ -26,19 +26,31 @@ import { UserActionTokenTypeOrmRepository } from './infrastructure/persistence/t
 @Module({
   imports: [
     TypeOrmModule.forFeature([AuthSessionTypeOrmEntity, UserActionTokenTypeOrmEntity]),
-    ThrottlerModule.forRoot({
-      skipIf: () => !AUTH_RUNTIME_CONFIG.rateLimitingEnabled,
-      throttlers: [
-        {
-          name: 'auth',
-          ttl: AUTH_RUNTIME_CONFIG.rateLimitTtlMs,
-          limit: AUTH_RUNTIME_CONFIG.rateLimitLimit,
-        },
-      ],
+    ThrottlerModule.forRootAsync({
+      useFactory: () => {
+        const authConfig = getAuthRuntimeConfig();
+
+        return {
+          skipIf: () => !authConfig.rateLimitingEnabled,
+          throttlers: [
+            {
+              name: 'auth',
+              ttl: authConfig.rateLimitTtlMs,
+              limit: authConfig.rateLimitLimit,
+            },
+          ],
+        };
+      },
     }),
-    JwtModule.register({
-      secret: JWT_CONFIG.secret,
-      signOptions: { expiresIn: JWT_CONFIG.expiresIn },
+    JwtModule.registerAsync({
+      useFactory: () => {
+        const jwtConfig = getJwtConfig();
+
+        return {
+          secret: jwtConfig.secret,
+          signOptions: { expiresIn: jwtConfig.expiresIn },
+        };
+      },
     }),
   ],
   providers: [

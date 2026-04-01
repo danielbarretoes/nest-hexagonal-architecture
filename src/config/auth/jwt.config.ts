@@ -3,20 +3,18 @@
  */
 
 import type { StringValue } from 'ms';
+import { getAppConfig } from '../env/app-config';
 
-interface JwtConfig {
+export interface JwtConfig {
   secret: string;
   expiresIn: StringValue | number;
 }
 
-const isProduction = process.env.NODE_ENV === 'production';
-const configuredSecret = process.env.JWT_SECRET;
+export function getJwtConfig(): JwtConfig {
+  const { auth } = getAppConfig();
 
-if (isProduction && !configuredSecret) {
-  throw new Error('JWT_SECRET must be defined in production environments');
+  return {
+    secret: auth.jwtSecret,
+    expiresIn: auth.jwtExpiresIn,
+  };
 }
-
-export const JWT_CONFIG: JwtConfig = {
-  secret: configuredSecret || 'hexagonal-development-secret-change-before-production-use',
-  expiresIn: (process.env.JWT_EXPIRES_IN as StringValue | undefined) ?? '15m',
-};

@@ -25,7 +25,7 @@ import { AuthRateLimitGuard } from '../guards/auth-rate-limit.guard';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { CurrentUser } from '../../../../../common/http/decorators/current-user.decorator';
 import type { AuthenticatedUserPayload } from '../../../../../common/http/authenticated-request';
-import { AUTH_RUNTIME_CONFIG } from '../../../../../config/auth/auth-runtime.config';
+import { getAuthRuntimeConfig } from '../../../../../config/auth/auth-runtime.config';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Auth')
@@ -110,7 +110,7 @@ export class AuthController {
   async requestPasswordReset(@Body() body: RequestPasswordResetDto) {
     const response = await this.requestPasswordResetUseCase.execute(body.email);
 
-    return AUTH_RUNTIME_CONFIG.exposePrivateTokens ? response : {};
+    return getAuthRuntimeConfig().exposePrivateTokens ? response : {};
   }
 
   @Post('password-reset/confirm')
@@ -132,7 +132,7 @@ export class AuthController {
   async requestEmailVerification(@CurrentUser() user: AuthenticatedUserPayload) {
     const response = await this.requestEmailVerificationUseCase.execute(user.userId);
 
-    return AUTH_RUNTIME_CONFIG.exposePrivateTokens ? response : {};
+    return getAuthRuntimeConfig().exposePrivateTokens ? response : {};
   }
 
   @Post('email-verification/confirm')

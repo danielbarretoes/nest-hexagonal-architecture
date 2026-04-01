@@ -8,6 +8,7 @@ import { GetPaginatedHttpLogsUseCase } from './application/use-cases/get-paginat
 import { RecordHttpLogUseCase } from './application/use-cases/record-http-log.use-case';
 import { HttpLogTypeOrmEntity } from './infrastructure/persistence/typeorm/entities/http-log.entity';
 import { HttpLogTypeOrmRepository } from './infrastructure/persistence/typeorm/repositories/http-log.typeorm-repository';
+import { HttpLogsShutdownHook } from './infrastructure/http-logs-shutdown.hook';
 import { HttpLogsController } from './presentation/controllers/http-logs.controller';
 import { HttpLogsMiddleware } from './presentation/middlewares/http-logs.middleware';
 import { IamAuthorizationAccessModule } from '../../iam/iam-authorization-access.module';
@@ -29,6 +30,7 @@ import { PermissionGuard } from '../../../common/http/guards/permission.guard';
     GetPaginatedHttpLogsUseCase,
     PermissionGuard,
     HttpLogsMiddleware,
+    HttpLogsShutdownHook,
   ],
   exports: [
     RecordHttpLogUseCase,

@@ -48,7 +48,7 @@ Best practice in this template:
 
 ## How Environment Loading Works
 
-Environment loading is centralized in [`src/config/env/load-env.ts`](../src/config/env/load-env.ts).
+Environment loading is centralized in [`src/config/env/load-env.ts`](../src/config/env/load-env.ts), and validated runtime parsing lives in [`src/config/env/app-config.ts`](../src/config/env/app-config.ts).
 
 Rules:
 
@@ -57,6 +57,13 @@ Rules:
 - e2e tests never need to mutate the normal development database settings
 
 The application bootstrap logs the selected environment and database name on startup.
+
+The runtime now fails fast on invalid combinations such as:
+
+- `DB_SYNC=true` in production
+- `DB_DROP_SCHEMA=true` outside test
+- `DB_POOL_MIN > DB_POOL_MAX`
+- short JWT secrets
 
 Example:
 
@@ -170,6 +177,7 @@ The e2e suite:
 You do not normally need to migrate the test database manually.
 
 In CI, the repository workflow starts PostgreSQL as a service container and runs the same e2e suite against it.
+The workflow also publishes a coverage summary directly in the GitHub Actions job summary.
 
 ## Migration Commands
 
@@ -350,6 +358,7 @@ The current RLS-enabled tenant-scoped tables are:
 
 - `members`
 - `http_logs` for tenant-scoped read queries
+- `organization_invitations`
 
 Important:
 
@@ -375,6 +384,33 @@ If you add a new tenant-scoped table later, you must extend:
 - the policy definitions
 - the repository transaction/session setup
 - the test coverage
+
+## Operational Retention Contract
+
+This template treats operational data explicitly:
+
+- `http_logs`: short-retention telemetry, recommended baseline `14 days`
+- `audit_logs`: administrative evidence, recommended baseline `365 days`
+
+The template does **not** delete or archive those rows automatically on the request path.
+
+Recommended production approach:
+
+1. run retention through a scheduled job, cron, or platform-native task
+2. archive first if compliance or forensics require it
+3. keep purge logic operational, not embedded in feature use cases
+
+Example purge SQL:
+
+```sql
+DELETE FROM http_logs
+WHERE created_at < NOW() - INTERVAL '14 days';
+
+DELETE FROM audit_logs
+WHERE created_at < NOW() - INTERVAL '365 days';
+```
+
+If a downstream product needs stricter compliance controls, replace deletion with archival/export plus a documented retention policy at the platform level.
 
 ## Troubleshooting
 

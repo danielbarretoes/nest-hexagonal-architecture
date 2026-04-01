@@ -10,6 +10,7 @@ import { ObservabilityModule } from './modules/observability/observability.modul
 import { TenantModule } from './common/tenant/tenant.module';
 import { TraceModule } from './common/observability/tracing/trace.module';
 import { databaseConfig } from './config/database/database.config';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { databaseConfig } from './config/database/database.config';
     }),
     TraceModule,
     TenantModule,
+    HealthModule,
     ObservabilityModule,
     IamModule,
   ],

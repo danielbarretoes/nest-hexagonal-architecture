@@ -1,4 +1,4 @@
-describe('JWT_CONFIG', () => {
+describe('getJwtConfig', () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalJwtSecret = process.env.JWT_SECRET;
 
@@ -20,22 +20,23 @@ describe('JWT_CONFIG', () => {
 
   it('throws when JWT_SECRET is missing in production', async () => {
     process.env.NODE_ENV = 'production';
-    delete process.env.JWT_SECRET;
+    process.env.JWT_SECRET = '';
 
     expect(() => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('./jwt.config');
-    }).toThrow('JWT_SECRET must be defined in production environments');
+      const configModule = require('./jwt.config') as typeof import('./jwt.config');
+      configModule.getJwtConfig();
+    }).toThrow('JWT_SECRET must be at least 32 characters');
   });
 
   it('uses the development fallback secret outside production', async () => {
     process.env.NODE_ENV = 'development';
-    delete process.env.JWT_SECRET;
+    process.env.JWT_SECRET = '';
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const configModule = require('./jwt.config') as typeof import('./jwt.config');
 
-    expect(configModule.JWT_CONFIG.secret).toBe(
+    expect(configModule.getJwtConfig().secret).toBe(
       'hexagonal-development-secret-change-before-production-use',
     );
   });

@@ -16,6 +16,7 @@ It currently includes:
 - soft delete + restore for `users` and `organizations`
 - PostgreSQL RLS foundation for tenant-scoped `members`
 - AsyncLocalStorage tenant context for request-scoped tenant propagation
+- validated runtime configuration, health probes, graceful shutdown, and production HTTP hardening
 
 ## Project Map
 
@@ -33,6 +34,7 @@ src/
 │   └── database/
 ├── database/
 │   └── migrations/
+├── health/                         # liveness/readiness deployment endpoints
 ├── modules/
 │   ├── iam/
 │   │   ├── iam-authorization-access.module.ts
@@ -225,6 +227,22 @@ Why:
 - records membership changes, invitation lifecycle, and session revocation events
 - complements `http_logs` instead of mixing business auditability with request observability
 
+## Runtime Baseline
+
+- runtime configuration is validated through `src/config/env/app-config.ts`
+- startup fails fast on invalid combinations such as `DB_SYNC=true` in production, `DB_POOL_MIN > DB_POOL_MAX`, or short JWT secrets
+- `LOG_LEVEL` and `LOG_JSON` drive the Nest logger baseline
+- `HELMET_ENABLED`, `CORS_ENABLED`, `CORS_ORIGINS`, and `HTTP_BODY_LIMIT` define the HTTP hardening contract
+- `DB_SSL_ENABLED` and `DB_SSL_REJECT_UNAUTHORIZED` control explicit PostgreSQL TLS behavior instead of hard-coded defaults
+
+## Health And Shutdown
+
+- liveness probe: `GET /api/health/live`
+- readiness probe: `GET /api/health/ready`
+- probes are version-neutral so deployment tooling does not need API version churn
+- readiness performs a minimal `SELECT 1` against PostgreSQL
+- bootstrap enables shutdown hooks and drains pending `http_logs` writes before process exit
+
 ## Database Workflow
 
 Detailed guide:
@@ -250,6 +268,7 @@ Key rules:
 
 - `.env` is the default runtime configuration for local development and normal app startup
 - `.env.test` is loaded only when `NODE_ENV=test`
+- runtime config is validated centrally before auth, Swagger, DB, and HTTP bootstrap consume it
 - `.env` must not contain test database credentials
 - `.env.test` is the only place for test database credentials
 - e2e tests use `.env.test`, so they should never need to rewrite the normal development database settings
@@ -291,7 +310,14 @@ Or run the full local contract in one command:
 
 - `npm run test:all`
 
-The repository also ships a GitHub Actions workflow that runs the same contract with PostgreSQL on pushes and pull requests.
+`npm test -- --runInBand` enforces the repository coverage threshold, and the GitHub Actions workflow publishes the same contract plus a coverage summary directly in the job summary for pushes and pull requests.
+
+## Operational Retention
+
+- `http_logs` are operational telemetry and should be treated as short-retention data; recommended baseline: 14 days
+- `audit_logs` are administrative evidence and should be retained longer; recommended baseline: 365 days
+- the template does not auto-delete either table at runtime
+- production deployments should archive or purge them with an explicit scheduled job owned by operations, not by request-path code
 
 ## Adding A New Feature
 

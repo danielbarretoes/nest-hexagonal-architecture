@@ -10,7 +10,7 @@ import type { PasswordHasherPort } from '../../../shared/domain/ports/password-h
 import { AuthSession } from '../../domain/entities/auth-session.entity';
 import { SessionNotFoundException, UserNotFoundException } from '../../../shared/domain/exceptions';
 import { parseOpaqueToken } from '../../../../../shared/domain/security/opaque-token';
-import { AUTH_RUNTIME_CONFIG } from '../../../../../config/auth/auth-runtime.config';
+import { getAuthRuntimeConfig } from '../../../../../config/auth/auth-runtime.config';
 
 export interface RefreshSessionResponse {
   accessToken: string;
@@ -64,7 +64,7 @@ export class RefreshSessionUseCase {
     const nextTokenHash = await this.passwordHasher.hash(nextSecret);
     const rotatedSession = session.rotate(
       nextTokenHash,
-      new Date(Date.now() + AUTH_RUNTIME_CONFIG.refreshSessionTtlMs),
+      new Date(Date.now() + getAuthRuntimeConfig().refreshSessionTtlMs),
     );
 
     await this.authSessionRepository.update(rotatedSession);

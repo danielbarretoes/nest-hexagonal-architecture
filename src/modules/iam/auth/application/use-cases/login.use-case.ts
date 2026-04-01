@@ -15,7 +15,7 @@ import { AUTH_SESSION_REPOSITORY_TOKEN } from '../ports/auth-session-repository.
 import type { AuthSessionRepositoryPort } from '../../domain/ports/auth-session.repository.port';
 import { createOpaqueToken } from '../../../../../shared/domain/security/opaque-token';
 import { RefreshSessionUseCase } from './refresh-session.use-case';
-import { AUTH_RUNTIME_CONFIG } from '../../../../../config/auth/auth-runtime.config';
+import { getAuthRuntimeConfig } from '../../../../../config/auth/auth-runtime.config';
 
 export interface LoginCommand {
   email: string;
@@ -61,7 +61,7 @@ export class LoginUseCase {
       opaqueRefreshToken.id,
       user.id,
       refreshTokenHash,
-      AUTH_RUNTIME_CONFIG.refreshSessionTtlMs,
+      getAuthRuntimeConfig().refreshSessionTtlMs,
     );
     await this.authSessionRepository.create(session);
 

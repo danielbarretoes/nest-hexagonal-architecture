@@ -1,6 +1,7 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Response } from 'express';
 import type { HttpLogRequest } from '../../../../../common/http/http-log-context';
+import { HttpLogWriteDrain } from '../../application/http-log-write-drain';
 import { RecordHttpLogUseCase } from '../../application/use-cases/record-http-log.use-case';
 import {
   sanitizeHttpLogErrorStack,
@@ -12,7 +13,6 @@ type SendResponder = (body?: unknown) => Response;
 
 @Injectable()
 export class HttpLogsMiddleware implements NestMiddleware {
-  private static pendingWrites = new Set<Promise<void>>();
   private readonly logger = new Logger(HttpLogsMiddleware.name);
 
   constructor(private readonly recordHttpLogUseCase: RecordHttpLogUseCase) {}
@@ -54,10 +54,10 @@ export class HttpLogsMiddleware implements NestMiddleware {
           this.logger.error(`Failed to persist HTTP log: ${message}`);
         })
         .finally(() => {
-          HttpLogsMiddleware.pendingWrites.delete(pendingWrite);
+          HttpLogWriteDrain.resolve(pendingWrite);
         });
 
-      HttpLogsMiddleware.pendingWrites.add(pendingWrite);
+      HttpLogWriteDrain.track(pendingWrite);
 
       if (statusCode >= 400) {
         this.logger.error(
@@ -75,7 +75,7 @@ export class HttpLogsMiddleware implements NestMiddleware {
   }
 
   static async waitForIdle(): Promise<void> {
-    await Promise.all([...HttpLogsMiddleware.pendingWrites]);
+    await HttpLogWriteDrain.waitForIdle();
   }
 
   private captureResponseBody(response: Response, onBody: (body: unknown) => void): void {

@@ -3,29 +3,36 @@
  * Initializes the NestJS application with global middleware and pipes.
  */
 
+import { ConsoleLogger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { configureHttpApplication } from './app.setup';
-import { loadEnvironment } from './config/env/load-env';
+import { getAppConfig } from './config/env/app-config';
 import { isSwaggerEnabled } from './config/swagger/swagger.config';
 
 async function bootstrap(): Promise<void> {
-  const logger = new Logger('Bootstrap');
-  const runtimeEnvironment = loadEnvironment();
+  const config = getAppConfig();
+  const logger = new ConsoleLogger('Bootstrap', {
+    json: config.logging.json,
+    logLevels: config.logging.enabledLevels,
+  });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
 
-  const app = await NestFactory.create(AppModule);
+  app.useLogger(logger);
+  app.enableShutdownHooks();
   configureHttpApplication(app);
 
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-  logger.log(`Application is running on: http://localhost:${port}`);
+  await app.listen(config.port);
+  logger.log(`Application is running on: http://localhost:${config.port}`);
   logger.log(
-    `Environment: ${runtimeEnvironment}, database: ${process.env.DB_DATABASE ?? 'hexagonal_db'}`,
+    `Environment: ${config.nodeEnv}, database: ${config.database.database}, logLevel: ${config.logging.level}`,
   );
 
   if (isSwaggerEnabled()) {
-    logger.log(`Swagger UI is running on: http://localhost:${port}/docs`);
+    logger.log(`Swagger UI is running on: http://localhost:${config.port}/docs`);
   }
 }
 

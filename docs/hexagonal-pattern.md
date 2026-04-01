@@ -131,6 +131,19 @@ Examples: HTTP filters, tracing, tenant context, interceptors, database subscrib
 
 `common` may compose technical Nest modules, but non-module implementation files should not depend directly on bounded-context internals.
 
+### `src/config`
+
+Runtime/framework configuration belongs here and should be validated centrally before modules consume it.
+
+Examples:
+
+- `src/config/env/app-config.ts`
+- `src/config/auth/*`
+- `src/config/database/*`
+- `src/config/swagger/*`
+
+This keeps environment parsing, fail-fast checks, and transport/runtime defaults out of feature code.
+
 ### `src/shared`
 
 Global shared kernel across bounded contexts.
@@ -665,6 +678,12 @@ If you add another tenant-scoped table, you must:
 
 Repository filtering uses the **validated effective tenant** from request context, not the raw header value.
 
+### Operational Probes
+
+- `GET /api/health/live` is version-neutral and reports process liveness
+- `GET /api/health/ready` is version-neutral and performs a minimal PostgreSQL readiness check
+- probes are deployment/runtime adapters, so they belong outside business feature bounded contexts
+
 ---
 
 ## 11. Soft Delete Pattern
@@ -873,7 +892,11 @@ Or run the same local contract with:
 npm run test:all
 ```
 
-If schema behavior matters, also verify migrations and RLS behavior through the PostgreSQL-backed e2e suite.
+Notes:
+
+- `npm test -- --runInBand` enforces the current coverage threshold after excluding wiring-only files, DTOs, migration files, and ORM entities from the numerator
+- GitHub Actions publishes a coverage summary directly in the job summary, not only as an artifact
+- if schema behavior matters, also verify migrations and RLS behavior through the PostgreSQL-backed e2e suite
 
 ---
 

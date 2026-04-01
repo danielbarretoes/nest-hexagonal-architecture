@@ -1,6 +1,6 @@
 import { config as loadDotenv } from 'dotenv';
 
-type RuntimeEnvironment = 'development' | 'test' | 'production';
+export type RuntimeEnvironment = 'development' | 'test' | 'production';
 
 function resolveRuntimeEnvironment(explicitEnvironment?: RuntimeEnvironment): RuntimeEnvironment {
   const runtimeEnvironment = explicitEnvironment ?? process.env.NODE_ENV;
