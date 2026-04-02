@@ -1,14 +1,15 @@
-import type { Repository } from 'typeorm';
 import { AuditLog } from '../../../../domain/entities/audit-log.entity';
-import { AuditLogTypeOrmEntity } from '../entities/audit-log.entity';
 import { AuditLogTypeOrmRepository } from './audit-log.typeorm-repository';
 
 describe('AuditLogTypeOrmRepository', () => {
   it('persists audit logs with the expected insert payload', async () => {
-    const repositoryMock = {
-      query: jest.fn().mockResolvedValue(undefined),
-    } as unknown as Repository<AuditLogTypeOrmEntity>;
-    const repository = new AuditLogTypeOrmRepository(repositoryMock);
+    const query = jest.fn().mockResolvedValue(undefined);
+    const dataSourceMock = {
+      manager: {
+        query,
+      },
+    };
+    const repository = new AuditLogTypeOrmRepository(dataSourceMock as never);
     const auditLog = AuditLog.create({
       action: 'iam.member.added',
       actorUserId: 'user-1',
@@ -20,19 +21,16 @@ describe('AuditLogTypeOrmRepository', () => {
     });
 
     await expect(repository.create(auditLog)).resolves.toBe(auditLog);
-    expect(repositoryMock.query).toHaveBeenCalledTimes(1);
-    expect(repositoryMock.query).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO "audit_logs"'),
-      [
-        auditLog.id,
-        auditLog.action,
-        auditLog.actorUserId,
-        auditLog.organizationId,
-        auditLog.resourceType,
-        auditLog.resourceId,
-        auditLog.payload,
-        auditLog.createdAt,
-      ],
-    );
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO "audit_logs"'), [
+      auditLog.id,
+      auditLog.action,
+      auditLog.actorUserId,
+      auditLog.organizationId,
+      auditLog.resourceType,
+      auditLog.resourceId,
+      auditLog.payload,
+      auditLog.createdAt,
+    ]);
   });
 });

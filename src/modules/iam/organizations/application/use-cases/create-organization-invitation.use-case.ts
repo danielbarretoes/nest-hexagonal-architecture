@@ -17,13 +17,19 @@ import type { MemberRepositoryPort } from '../../domain/ports/member.repository.
 import { USER_REPOSITORY_TOKEN } from '../../../users/application/ports/user-repository.token';
 import type { UserRepositoryPort } from '../../../users/domain/ports/user.repository.port';
 import { TRANSACTIONAL_EMAIL_PORT } from '../../../../../shared/application/ports/transactional-email.token';
+import { TRANSACTION_RUNNER_PORT } from '../../../../../shared/application/ports/transaction-runner.token';
+import { WEBHOOK_EVENT_PUBLISHER_PORT } from '../../../../../shared/application/ports/webhook-event-publisher.token';
 import type { TransactionalEmailPort } from '../../../../../shared/domain/ports/transactional-email.port';
+import type { TransactionRunnerPort } from '../../../../../shared/domain/ports/transaction-runner.port';
+import type { WebhookEventPublisherPort } from '../../../../../shared/domain/ports/webhook-event-publisher.port';
+import { WEBHOOK_EVENT_TYPES } from '../../../../../shared/domain/integration-events/webhook-event-types';
 import {
   MemberAlreadyExistsException,
   OrganizationInvitationAlreadyExistsException,
   OrganizationNotFoundException,
   RoleNotFoundException,
 } from '../../../shared/domain/exceptions';
+import { getAppConfig } from '../../../../../config/env/app-config';
 
 export interface CreateOrganizationInvitationCommand {
   organizationId: string;
@@ -55,11 +61,49 @@ export class CreateOrganizationInvitationUseCase {
     private readonly adminAuditPort: AdminAuditPort,
     @Inject(TRANSACTIONAL_EMAIL_PORT)
     private readonly transactionalEmailPort: TransactionalEmailPort,
+    @Inject(TRANSACTION_RUNNER_PORT)
+    private readonly transactionRunner: TransactionRunnerPort,
+    @Inject(WEBHOOK_EVENT_PUBLISHER_PORT)
+    private readonly webhookEventPublisher: WebhookEventPublisherPort,
   ) {}
 
   async execute(
     command: CreateOrganizationInvitationCommand,
   ): Promise<CreateOrganizationInvitationResponse> {
+    if (getAppConfig().jobs.emailDeliveryMode === 'async') {
+      return this.transactionRunner.runInTransaction(async () => {
+        const preparedInvitation = await this.prepareInvitation(command);
+
+        await this.transactionalEmailPort.send(preparedInvitation.emailMessage);
+
+        return {
+          invitationToken: preparedInvitation.invitationToken,
+        };
+      });
+    }
+
+    const preparedInvitation = await this.transactionRunner.runInTransaction(() =>
+      this.prepareInvitation(command),
+    );
+
+    await this.transactionalEmailPort.send(preparedInvitation.emailMessage);
+
+    return {
+      invitationToken: preparedInvitation.invitationToken,
+    };
+  }
+
+  private async prepareInvitation(command: CreateOrganizationInvitationCommand): Promise<{
+    invitationToken: string;
+    emailMessage: {
+      type: 'organization_invitation';
+      to: string;
+      organizationName: string;
+      roleCode: string;
+      invitationToken: string;
+      expiresInDays: number;
+    };
+  }> {
     const roleCode = command.roleCode ?? DEFAULT_ROLE_CODES[3];
     const role = await this.roleRepository.findByCode(roleCode);
 
@@ -118,17 +162,27 @@ export class CreateOrganizationInvitationUseCase {
         roleCode,
       },
     });
-    await this.transactionalEmailPort.send({
-      type: 'organization_invitation',
-      to: command.email,
-      organizationName: organization.name,
-      roleCode,
-      invitationToken: opaqueToken.token,
-      expiresInDays: 7,
+    await this.webhookEventPublisher.publish({
+      type: WEBHOOK_EVENT_TYPES.IAM_ORGANIZATION_INVITATION_CREATED,
+      organizationId: command.organizationId,
+      payload: {
+        invitationId: invitation.id,
+        email: command.email,
+        roleCode,
+        actorUserId: command.actorUserId ?? null,
+      },
     });
 
     return {
       invitationToken: opaqueToken.token,
+      emailMessage: {
+        type: 'organization_invitation',
+        to: command.email,
+        organizationName: organization.name,
+        roleCode,
+        invitationToken: opaqueToken.token,
+        expiresInDays: 7,
+      },
     };
   }
 }

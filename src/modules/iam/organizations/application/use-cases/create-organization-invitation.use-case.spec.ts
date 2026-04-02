@@ -11,6 +11,8 @@ describe('CreateOrganizationInvitationUseCase', () => {
   const create = jest.fn();
   const record = jest.fn();
   const send = jest.fn();
+  const runInTransaction = jest.fn();
+  const publish = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -28,6 +30,8 @@ describe('CreateOrganizationInvitationUseCase', () => {
     create.mockResolvedValue(undefined);
     record.mockResolvedValue(undefined);
     send.mockResolvedValue(undefined);
+    runInTransaction.mockImplementation(async (operation: () => Promise<unknown>) => operation());
+    publish.mockResolvedValue(undefined);
   });
 
   it('creates an invitation and sends an email with the organization context', async () => {
@@ -43,6 +47,8 @@ describe('CreateOrganizationInvitationUseCase', () => {
       { findByEmail } as never,
       { record } as never,
       { send } as never,
+      { runInTransaction } as never,
+      { publish } as never,
     );
 
     const response = await useCase.execute({

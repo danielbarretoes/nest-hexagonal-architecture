@@ -9,8 +9,13 @@ import { IamModule } from './modules/iam/iam.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { TraceModule } from './common/observability/tracing/trace.module';
+import { IdempotencyHttpModule } from './common/http/idempotency-http.module';
+import { UsageMeteringHttpModule } from './common/http/usage-metering-http.module';
+import { TypeormTransactionModule } from './common/infrastructure/database/typeorm/transaction/typeorm-transaction.module';
 import { databaseConfig } from './config/database/database.config';
 import { HealthModule } from './health/health.module';
+import { UsageMeteringModule } from './modules/usage-metering/usage-metering.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -18,9 +23,14 @@ import { HealthModule } from './health/health.module';
       useFactory: databaseConfig,
     }),
     TraceModule,
+    TypeormTransactionModule,
+    IdempotencyHttpModule,
+    UsageMeteringHttpModule,
     TenantModule,
     HealthModule,
     ObservabilityModule,
+    UsageMeteringModule,
+    WebhooksModule,
     IamModule,
   ],
 })

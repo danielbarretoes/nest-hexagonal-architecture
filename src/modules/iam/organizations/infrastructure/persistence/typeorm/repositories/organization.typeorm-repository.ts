@@ -3,8 +3,8 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, In } from 'typeorm';
 import { OrganizationTypeOrmEntity } from '../entities/organization.entity';
 import {
   OrganizationQueryOptions,
@@ -17,16 +17,17 @@ import type {
 } from '../../../../domain/entities/organization.entity';
 import { Paginated } from '../../../../../../../shared/domain/primitives/paginated';
 import { OrganizationNotFoundException } from '../../../../../shared/domain/exceptions';
+import { getTypeormRepository } from '../../../../../../../common/infrastructure/database/typeorm/transaction/typeorm-transaction.utils';
 
 @Injectable()
 export class OrganizationTypeOrmRepository implements OrganizationRepositoryPort {
   constructor(
-    @InjectRepository(OrganizationTypeOrmEntity)
-    private readonly repository: Repository<OrganizationTypeOrmEntity>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async findById(id: string, options?: OrganizationQueryOptions): Promise<Organization | null> {
-    const entity = await this.repository.findOne({
+    const entity = await getTypeormRepository(this.dataSource, OrganizationTypeOrmEntity).findOne({
       where: { id },
       withDeleted: options?.includeDeleted ?? false,
     });
@@ -41,7 +42,7 @@ export class OrganizationTypeOrmRepository implements OrganizationRepositoryPort
       return [];
     }
 
-    const entities = await this.repository.find({
+    const entities = await getTypeormRepository(this.dataSource, OrganizationTypeOrmEntity).find({
       where: { id: In([...ids]) },
       withDeleted: options?.includeDeleted ?? false,
     });
@@ -54,7 +55,7 @@ export class OrganizationTypeOrmRepository implements OrganizationRepositoryPort
   }
 
   async findByName(name: string, options?: OrganizationQueryOptions): Promise<Organization | null> {
-    const entity = await this.repository.findOne({
+    const entity = await getTypeormRepository(this.dataSource, OrganizationTypeOrmEntity).findOne({
       where: { name: name.trim() },
       withDeleted: options?.includeDeleted ?? false,
     });
@@ -63,7 +64,10 @@ export class OrganizationTypeOrmRepository implements OrganizationRepositoryPort
 
   async findPaginated(page: number, limit: number): Promise<Paginated<Organization>> {
     const skip = (page - 1) * limit;
-    const [entities, total] = await this.repository.findAndCount({
+    const [entities, total] = await getTypeormRepository(
+      this.dataSource,
+      OrganizationTypeOrmEntity,
+    ).findAndCount({
       skip,
       take: limit,
       order: { createdAt: 'DESC' },
@@ -72,11 +76,12 @@ export class OrganizationTypeOrmRepository implements OrganizationRepositoryPort
   }
 
   async create(props: CreateOrganizationProps & { id: string }): Promise<Organization> {
-    const entity = this.repository.create({
+    const repository = getTypeormRepository(this.dataSource, OrganizationTypeOrmEntity);
+    const entity = repository.create({
       id: props.id,
       name: props.name,
     });
-    const saved = await this.repository.save(entity);
+    const saved = await repository.save(entity);
     return OrganizationMapper.toDomain(saved);
   }
 
@@ -85,8 +90,10 @@ export class OrganizationTypeOrmRepository implements OrganizationRepositoryPort
     if (data.name) updateData.name = data.name;
     if (data.deletedAt !== undefined) updateData.deletedAt = data.deletedAt;
 
-    await this.repository.update(id, updateData);
-    const entity = await this.repository.findOne({ where: { id } });
+    const repository = getTypeormRepository(this.dataSource, OrganizationTypeOrmEntity);
+
+    await repository.update(id, updateData);
+    const entity = await repository.findOne({ where: { id } });
     if (!entity) {
       throw new OrganizationNotFoundException(id);
     }
@@ -94,12 +101,14 @@ export class OrganizationTypeOrmRepository implements OrganizationRepositoryPort
   }
 
   async delete(id: string): Promise<void> {
-    await this.repository.softDelete(id);
+    await getTypeormRepository(this.dataSource, OrganizationTypeOrmEntity).softDelete(id);
   }
 
   async restore(id: string): Promise<Organization> {
-    await this.repository.restore(id);
-    const entity = await this.repository.findOne({
+    const repository = getTypeormRepository(this.dataSource, OrganizationTypeOrmEntity);
+
+    await repository.restore(id);
+    const entity = await repository.findOne({
       where: { id },
       withDeleted: true,
     });

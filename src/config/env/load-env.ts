@@ -14,6 +14,9 @@ function resolveRuntimeEnvironment(explicitEnvironment?: RuntimeEnvironment): Ru
 
 export function loadEnvironment(explicitEnvironment?: RuntimeEnvironment): RuntimeEnvironment {
   const runtimeEnvironment = resolveRuntimeEnvironment(explicitEnvironment);
+  const explicitOverrides = new Map(
+    Object.entries(process.env).filter(([, value]) => value !== undefined),
+  );
 
   process.env.NODE_ENV = runtimeEnvironment;
 
@@ -28,6 +31,10 @@ export function loadEnvironment(explicitEnvironment?: RuntimeEnvironment): Runti
       override: true,
     });
   }
+
+  explicitOverrides.forEach((value, key) => {
+    process.env[key] = value;
+  });
 
   return runtimeEnvironment;
 }

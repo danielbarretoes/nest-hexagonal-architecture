@@ -35,9 +35,9 @@ export async function resetE2eDatabase(context: E2eTestContext): Promise<void> {
   await truncateIamTables(context.dataSource);
 }
 
-export async function destroyE2eTestApp(context: E2eTestContext): Promise<void> {
+export async function destroyE2eTestApp(context?: E2eTestContext): Promise<void> {
   await HttpLogsMiddleware.waitForIdle();
-  await context.app?.close();
+  await context?.app?.close();
 }
 
 export async function waitForHttpLogsToDrain(): Promise<void> {

@@ -4,8 +4,8 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, In } from 'typeorm';
 import { UserTypeOrmEntity } from '../entities/user.entity';
 import {
   UserQueryOptions,
@@ -15,16 +15,17 @@ import { UserMapper } from '../mappers/user.mapper';
 import type { User, CreateUserProps } from '../../../../domain/entities/user.entity';
 import { Paginated } from '../../../../../../../shared/domain/primitives/paginated';
 import { UserNotFoundException } from '../../../../../shared/domain/exceptions';
+import { getTypeormRepository } from '../../../../../../../common/infrastructure/database/typeorm/transaction/typeorm-transaction.utils';
 
 @Injectable()
 export class UserTypeOrmRepository implements UserRepositoryPort {
   constructor(
-    @InjectRepository(UserTypeOrmEntity)
-    private readonly repository: Repository<UserTypeOrmEntity>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async findById(id: string, options?: UserQueryOptions): Promise<User | null> {
-    const entity = await this.repository.findOne({
+    const entity = await getTypeormRepository(this.dataSource, UserTypeOrmEntity).findOne({
       where: { id },
       withDeleted: options?.includeDeleted ?? false,
     });
@@ -36,7 +37,7 @@ export class UserTypeOrmRepository implements UserRepositoryPort {
       return [];
     }
 
-    const entities = await this.repository.find({
+    const entities = await getTypeormRepository(this.dataSource, UserTypeOrmEntity).find({
       where: { id: In([...ids]) },
       withDeleted: options?.includeDeleted ?? false,
     });
@@ -49,7 +50,7 @@ export class UserTypeOrmRepository implements UserRepositoryPort {
   }
 
   async findByEmail(email: string, options?: UserQueryOptions): Promise<User | null> {
-    const entity = await this.repository.findOne({
+    const entity = await getTypeormRepository(this.dataSource, UserTypeOrmEntity).findOne({
       where: { email: email.toLowerCase().trim() },
       withDeleted: options?.includeDeleted ?? false,
     });
@@ -58,7 +59,10 @@ export class UserTypeOrmRepository implements UserRepositoryPort {
 
   async findPaginated(page: number, limit: number): Promise<Paginated<User>> {
     const skip = (page - 1) * limit;
-    const [entities, total] = await this.repository.findAndCount({
+    const [entities, total] = await getTypeormRepository(
+      this.dataSource,
+      UserTypeOrmEntity,
+    ).findAndCount({
       skip,
       take: limit,
       order: { createdAt: 'DESC' },
@@ -67,7 +71,8 @@ export class UserTypeOrmRepository implements UserRepositoryPort {
   }
 
   async create(props: CreateUserProps & { id: string }): Promise<User> {
-    const entity = this.repository.create({
+    const repository = getTypeormRepository(this.dataSource, UserTypeOrmEntity);
+    const entity = repository.create({
       id: props.id,
       email: props.email,
       passwordHash: props.passwordHash,
@@ -75,7 +80,7 @@ export class UserTypeOrmRepository implements UserRepositoryPort {
       lastName: props.lastName,
       emailVerifiedAt: props.emailVerifiedAt ?? null,
     });
-    const saved = await this.repository.save(entity);
+    const saved = await repository.save(entity);
     return UserMapper.toDomain(saved);
   }
 
@@ -88,8 +93,10 @@ export class UserTypeOrmRepository implements UserRepositoryPort {
     if (data.emailVerifiedAt !== undefined) updateData.emailVerifiedAt = data.emailVerifiedAt;
     if (data.deletedAt !== undefined) updateData.deletedAt = data.deletedAt;
 
-    await this.repository.update(id, updateData);
-    const entity = await this.repository.findOne({ where: { id } });
+    const repository = getTypeormRepository(this.dataSource, UserTypeOrmEntity);
+
+    await repository.update(id, updateData);
+    const entity = await repository.findOne({ where: { id } });
     if (!entity) {
       throw new UserNotFoundException(id);
     }
@@ -98,12 +105,14 @@ export class UserTypeOrmRepository implements UserRepositoryPort {
   }
 
   async delete(id: string): Promise<void> {
-    await this.repository.softDelete(id);
+    await getTypeormRepository(this.dataSource, UserTypeOrmEntity).softDelete(id);
   }
 
   async restore(id: string): Promise<User> {
-    await this.repository.restore(id);
-    const entity = await this.repository.findOne({
+    const repository = getTypeormRepository(this.dataSource, UserTypeOrmEntity);
+
+    await repository.restore(id);
+    const entity = await repository.findOne({
       where: { id },
       withDeleted: true,
     });

@@ -7,7 +7,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../../iam/auth/presentation/guards/jwt-auth.guard';
+import { AccessAuthGuard } from '../../../../iam/auth/presentation/guards/access-auth.guard';
 import { GetHttpLogByIdUseCase } from '../../application/use-cases/get-http-log-by-id.use-case';
 import { GetHttpLogsByTraceIdUseCase } from '../../application/use-cases/get-http-logs-by-trace-id.use-case';
 import { GetPaginatedHttpLogsUseCase } from '../../application/use-cases/get-paginated-http-logs.use-case';
@@ -21,7 +21,7 @@ import { PERMISSION_CODES } from '../../../../../shared/domain/authorization/per
 
 @ApiTags('HTTP Logs')
 @ApiBearerAuth('bearer')
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(AccessAuthGuard, PermissionGuard)
 @RequirePermissions(PERMISSION_CODES.OBSERVABILITY_HTTP_LOGS_READ)
 @Controller({ path: 'http-logs', version: '1' })
 export class HttpLogsController {

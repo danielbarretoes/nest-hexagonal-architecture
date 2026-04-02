@@ -1,19 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import type { DataSource } from 'typeorm';
 import type { AuditLogRepositoryPort } from '../../../../domain/ports/audit-log.repository.port';
 import type { AuditLog } from '../../../../domain/entities/audit-log.entity';
-import { AuditLogTypeOrmEntity } from '../entities/audit-log.entity';
+import { getTypeormEntityManager } from '../../../../../../../common/infrastructure/database/typeorm/transaction/typeorm-transaction.utils';
 
 @Injectable()
 export class AuditLogTypeOrmRepository implements AuditLogRepositoryPort {
   constructor(
-    @InjectRepository(AuditLogTypeOrmEntity)
-    private readonly repository: Repository<AuditLogTypeOrmEntity>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(auditLog: AuditLog): Promise<AuditLog> {
-    await this.repository.query(
+    await getTypeormEntityManager(this.dataSource).query(
       `
         INSERT INTO "audit_logs" (
           "id",

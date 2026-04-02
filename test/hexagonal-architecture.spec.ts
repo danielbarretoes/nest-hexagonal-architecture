@@ -16,6 +16,14 @@ function getScope(filePath: string): string | null {
     return 'shared-global';
   }
 
+  const directLayerMatch = filePath.match(
+    /\/src\/modules\/([^/]+)\/(domain|application|infrastructure|presentation)\//,
+  );
+
+  if (directLayerMatch) {
+    return `${directLayerMatch[1]}/root`;
+  }
+
   const match = filePath.match(/\/src\/modules\/([^/]+)\/([^/]+)/);
   return match ? `${match[1]}/${match[2]}` : null;
 }

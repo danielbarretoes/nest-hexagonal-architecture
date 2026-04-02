@@ -1,22 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, IsNull } from 'typeorm';
 import {
   UserActionToken,
   type UserActionTokenPurpose,
 } from '../../../../domain/entities/user-action-token.entity';
 import type { UserActionTokenRepositoryPort } from '../../../../domain/ports/user-action-token.repository.port';
 import { UserActionTokenTypeOrmEntity } from '../entities/user-action-token.entity';
+import { getTypeormRepository } from '../../../../../../../common/infrastructure/database/typeorm/transaction/typeorm-transaction.utils';
 
 @Injectable()
 export class UserActionTokenTypeOrmRepository implements UserActionTokenRepositoryPort {
   constructor(
-    @InjectRepository(UserActionTokenTypeOrmEntity)
-    private readonly repository: Repository<UserActionTokenTypeOrmEntity>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async findById(id: string): Promise<UserActionToken | null> {
-    const entity = await this.repository.findOne({ where: { id } });
+    const entity = await getTypeormRepository(
+      this.dataSource,
+      UserActionTokenTypeOrmEntity,
+    ).findOne({
+      where: { id },
+    });
     return entity ? this.toDomain(entity) : null;
   }
 
@@ -24,7 +30,10 @@ export class UserActionTokenTypeOrmRepository implements UserActionTokenReposito
     userId: string,
     purpose: UserActionTokenPurpose,
   ): Promise<UserActionToken | null> {
-    const entity = await this.repository.findOne({
+    const entity = await getTypeormRepository(
+      this.dataSource,
+      UserActionTokenTypeOrmEntity,
+    ).findOne({
       where: {
         userId,
         purpose,
@@ -39,7 +48,8 @@ export class UserActionTokenTypeOrmRepository implements UserActionTokenReposito
   }
 
   async create(token: UserActionToken): Promise<UserActionToken> {
-    const entity = this.repository.create({
+    const repository = getTypeormRepository(this.dataSource, UserActionTokenTypeOrmEntity);
+    const entity = repository.create({
       id: token.id,
       userId: token.userId,
       purpose: token.purpose,
@@ -49,18 +59,20 @@ export class UserActionTokenTypeOrmRepository implements UserActionTokenReposito
       createdAt: token.createdAt,
     });
 
-    const saved = await this.repository.save(entity);
+    const saved = await repository.save(entity);
     return this.toDomain(saved);
   }
 
   async update(token: UserActionToken): Promise<UserActionToken> {
-    await this.repository.update(token.id, {
+    const repository = getTypeormRepository(this.dataSource, UserActionTokenTypeOrmEntity);
+
+    await repository.update(token.id, {
       consumedAt: token.consumedAt,
       expiresAt: token.expiresAt,
       tokenHash: token.tokenHash,
     });
 
-    const entity = await this.repository.findOne({ where: { id: token.id } });
+    const entity = await repository.findOne({ where: { id: token.id } });
     return this.toDomain(entity as UserActionTokenTypeOrmEntity);
   }
 

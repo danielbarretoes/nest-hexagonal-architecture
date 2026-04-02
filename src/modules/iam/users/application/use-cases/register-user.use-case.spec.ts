@@ -6,6 +6,7 @@ describe('RegisterUserUseCase', () => {
   const create = jest.fn();
   const hash = jest.fn();
   const send = jest.fn();
+  const runInTransaction = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -25,6 +26,7 @@ describe('RegisterUserUseCase', () => {
       }),
     );
     send.mockRejectedValue(new Error('SES unavailable'));
+    runInTransaction.mockImplementation(async (operation: () => Promise<unknown>) => operation());
   });
 
   it('keeps self-registration successful even when welcome email delivery fails', async () => {
@@ -35,6 +37,7 @@ describe('RegisterUserUseCase', () => {
       } as never,
       { hash } as never,
       { send } as never,
+      { runInTransaction } as never,
     );
 
     const user = await useCase.execute({

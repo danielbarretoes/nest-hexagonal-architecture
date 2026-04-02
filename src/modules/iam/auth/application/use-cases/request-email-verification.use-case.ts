@@ -11,8 +11,11 @@ import {
   UserNotFoundException,
 } from '../../../shared/domain/exceptions';
 import { TRANSACTIONAL_EMAIL_PORT } from '../../../../../shared/application/ports/transactional-email.token';
+import { TRANSACTION_RUNNER_PORT } from '../../../../../shared/application/ports/transaction-runner.token';
 import { createOpaqueToken } from '../../../../../shared/domain/security/opaque-token';
 import type { TransactionalEmailPort } from '../../../../../shared/domain/ports/transactional-email.port';
+import type { TransactionRunnerPort } from '../../../../../shared/domain/ports/transaction-runner.port';
+import { getAppConfig } from '../../../../../config/env/app-config';
 
 export interface RequestEmailVerificationResponse {
   verificationToken: string;
@@ -29,9 +32,46 @@ export class RequestEmailVerificationUseCase {
     private readonly passwordHasher: PasswordHasherPort,
     @Inject(TRANSACTIONAL_EMAIL_PORT)
     private readonly transactionalEmailPort: TransactionalEmailPort,
+    @Inject(TRANSACTION_RUNNER_PORT)
+    private readonly transactionRunner: TransactionRunnerPort,
   ) {}
 
   async execute(userId: string): Promise<RequestEmailVerificationResponse> {
+    if (getAppConfig().jobs.emailDeliveryMode === 'async') {
+      return this.transactionRunner.runInTransaction(async () => {
+        const preparedVerification = await this.prepareEmailVerification(userId);
+
+        await this.transactionalEmailPort.send(
+          this.toEmailVerificationMessage(
+            preparedVerification,
+            preparedVerification.verificationToken,
+          ),
+        );
+
+        return {
+          verificationToken: preparedVerification.verificationToken,
+        };
+      });
+    }
+
+    const preparedVerification = await this.transactionRunner.runInTransaction(() =>
+      this.prepareEmailVerification(userId),
+    );
+
+    await this.transactionalEmailPort.send(
+      this.toEmailVerificationMessage(preparedVerification, preparedVerification.verificationToken),
+    );
+
+    return {
+      verificationToken: preparedVerification.verificationToken,
+    };
+  }
+
+  private async prepareEmailVerification(userId: string): Promise<{
+    userEmail: string;
+    recipientName: string;
+    verificationToken: string;
+  }> {
     const user = await this.userRepository.findById(userId, {
       includeDeleted: true,
     });
@@ -65,16 +105,27 @@ export class RequestEmailVerificationUseCase {
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       }),
     );
-    await this.transactionalEmailPort.send({
-      type: 'email_verification',
-      to: user.email,
-      recipientName: user.fullName,
-      verificationToken: opaqueToken.token,
-      expiresInHours: 24,
-    });
 
     return {
+      userEmail: user.email,
+      recipientName: user.fullName,
       verificationToken: opaqueToken.token,
+    };
+  }
+
+  private toEmailVerificationMessage(
+    preparedVerification: {
+      userEmail: string;
+      recipientName: string;
+    },
+    verificationToken: string,
+  ) {
+    return {
+      type: 'email_verification' as const,
+      to: preparedVerification.userEmail,
+      recipientName: preparedVerification.recipientName,
+      verificationToken,
+      expiresInHours: 24,
     };
   }
 }

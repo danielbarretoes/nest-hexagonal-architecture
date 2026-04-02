@@ -33,11 +33,21 @@ export class PermissionGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthenticatedHttpRequest>();
     const organizationHeader = request.headers['x-organization-id'];
-    const organizationId =
+    const organizationIdFromHeader =
       typeof organizationHeader === 'string' ? organizationHeader.trim() : undefined;
+    const organizationId = organizationIdFromHeader || request.effectiveOrganizationId;
 
     if (!request.user) {
       throw new ForbiddenException('Authenticated user context is required');
+    }
+
+    if (
+      request.user.authMethod === 'api_key' &&
+      organizationIdFromHeader &&
+      request.user.organizationId &&
+      organizationIdFromHeader !== request.user.organizationId
+    ) {
+      throw new ForbiddenException('API key cannot be used outside its bound organization');
     }
 
     if (!organizationId) {
@@ -52,6 +62,14 @@ export class PermissionGuard implements CanActivate {
       );
 
       if (!hasPermission) {
+        throw new ForbiddenException(`Missing required permission: ${permissionCode}`);
+      }
+
+      if (
+        request.user.authMethod === 'api_key' &&
+        request.user.apiKeyScopes &&
+        !request.user.apiKeyScopes.includes(permissionCode)
+      ) {
         throw new ForbiddenException(`Missing required permission: ${permissionCode}`);
       }
     }

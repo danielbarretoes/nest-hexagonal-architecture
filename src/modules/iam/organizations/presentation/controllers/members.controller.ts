@@ -20,9 +20,10 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../auth/presentation/guards/jwt-auth.guard';
+import { AccessAuthGuard } from '../../../auth/presentation/guards/access-auth.guard';
 import { PermissionGuard } from '../../../../../common/http/guards/permission.guard';
 import { RequirePermissions } from '../../../../../common/http/decorators/require-permissions.decorator';
+import { Idempotent } from '../../../../../common/http/decorators/idempotent.decorator';
 import { PERMISSION_CODES } from '../../../../../shared/domain/authorization/permission-codes';
 import { CurrentOrganizationId } from '../../../../../common/http/decorators/current-organization-id.decorator';
 import { CurrentUser } from '../../../../../common/http/decorators/current-user.decorator';
@@ -63,7 +64,7 @@ export class MembersController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_MEMBERS_READ)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'List members for the current organization' })
@@ -74,7 +75,8 @@ export class MembersController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @Idempotent()
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_MEMBERS_WRITE)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Add an existing user to the current organization' })
@@ -95,7 +97,7 @@ export class MembersController {
   }
 
   @Patch(':id/role')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_MEMBERS_WRITE)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Change a member role inside the current organization' })
@@ -118,7 +120,7 @@ export class MembersController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_MEMBERS_WRITE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth('bearer')

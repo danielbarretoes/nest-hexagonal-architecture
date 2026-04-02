@@ -6,6 +6,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { AccessAuthGuard } from '../../../auth/presentation/guards/access-auth.guard';
 import { JwtAuthGuard } from '../../../auth/presentation/guards/jwt-auth.guard';
 import { PermissionGuard } from '../../../../../common/http/guards/permission.guard';
 import { RequirePermissions } from '../../../../../common/http/decorators/require-permissions.decorator';
@@ -17,6 +18,7 @@ import { CreateOrganizationInvitationDto } from '../dto/create-organization-invi
 import { OrganizationInvitationResponseDto } from '../dto/organization-invitation-response.dto';
 import { AcceptOrganizationInvitationDto } from '../dto/accept-organization-invitation.dto';
 import { CurrentUser } from '../../../../../common/http/decorators/current-user.decorator';
+import { Idempotent } from '../../../../../common/http/decorators/idempotent.decorator';
 import type { AuthenticatedUserPayload } from '../../../../../common/http/authenticated-request';
 import { getAuthRuntimeConfig } from '../../../../../config/auth/auth-runtime.config';
 
@@ -29,7 +31,8 @@ export class OrganizationInvitationsController {
   ) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @Idempotent()
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_MEMBERS_WRITE)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Invite a user email into the current organization' })

@@ -1,20 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import type { RoleRepositoryPort } from '../../../../domain/ports/role.repository.port';
 import { Role } from '../../../../domain/entities/role.entity';
 import { RoleTypeOrmEntity } from '../entities/role.entity';
 import { RoleMapper } from '../mappers/role.mapper';
+import { getTypeormRepository } from '../../../../../../../common/infrastructure/database/typeorm/transaction/typeorm-transaction.utils';
 
 @Injectable()
 export class RoleTypeOrmRepository implements RoleRepositoryPort {
   constructor(
-    @InjectRepository(RoleTypeOrmEntity)
-    private readonly repository: Repository<RoleTypeOrmEntity>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async findById(id: string): Promise<Role | null> {
-    const entity = await this.repository.findOne({
+    const entity = await getTypeormRepository(this.dataSource, RoleTypeOrmEntity).findOne({
       where: { id },
       relations: {
         permissions: true,
@@ -24,7 +25,7 @@ export class RoleTypeOrmRepository implements RoleRepositoryPort {
   }
 
   async findByCode(code: string): Promise<Role | null> {
-    const entity = await this.repository.findOne({
+    const entity = await getTypeormRepository(this.dataSource, RoleTypeOrmEntity).findOne({
       where: { code },
       relations: {
         permissions: true,
@@ -34,7 +35,7 @@ export class RoleTypeOrmRepository implements RoleRepositoryPort {
   }
 
   async findAll(): Promise<Role[]> {
-    const entities = await this.repository.find({
+    const entities = await getTypeormRepository(this.dataSource, RoleTypeOrmEntity).find({
       relations: {
         permissions: true,
       },

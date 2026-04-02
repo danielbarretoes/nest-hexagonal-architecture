@@ -38,7 +38,10 @@ describe('JwtAuthGuard', () => {
 
     expect(canActivate).toBe(true);
     expect(verifyToken).toHaveBeenCalledWith('valid-token');
-    expect(request.user).toEqual(payload);
+    expect(request.user).toEqual({
+      ...payload,
+      authMethod: 'jwt',
+    });
   });
 
   it('rejects requests without an authorization header', () => {

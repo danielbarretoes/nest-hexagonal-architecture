@@ -8,6 +8,7 @@ describe('RequestEmailVerificationUseCase', () => {
   const update = jest.fn();
   const hash = jest.fn();
   const send = jest.fn();
+  const runInTransaction = jest.fn();
 
   const user = User.create({
     id: 'user-1',
@@ -24,6 +25,7 @@ describe('RequestEmailVerificationUseCase', () => {
     hash.mockResolvedValue('hashed-token');
     create.mockResolvedValue(undefined);
     send.mockResolvedValue(undefined);
+    runInTransaction.mockImplementation(async (operation: () => Promise<unknown>) => operation());
   });
 
   it('creates a verification token and sends an email verification message', async () => {
@@ -36,6 +38,7 @@ describe('RequestEmailVerificationUseCase', () => {
       } as never,
       { hash } as never,
       { send } as never,
+      { runInTransaction } as never,
     );
 
     const response = await useCase.execute(user.id);

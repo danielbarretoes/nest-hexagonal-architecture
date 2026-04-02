@@ -254,6 +254,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       MEMBER_NOT_FOUND: HttpStatus.NOT_FOUND,
       ROLE_NOT_FOUND: HttpStatus.NOT_FOUND,
       ORGANIZATION_INVITATION_NOT_FOUND: HttpStatus.NOT_FOUND,
+      API_KEY_NOT_FOUND: HttpStatus.NOT_FOUND,
       HTTP_LOG_NOT_FOUND: HttpStatus.NOT_FOUND,
       USER_MANAGEMENT_TARGET_NOT_ALLOWED: HttpStatus.NOT_FOUND,
       CANNOT_MANAGE_OWN_USER: HttpStatus.FORBIDDEN,
@@ -263,6 +264,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       TENANT_CONTEXT_REQUIRED: HttpStatus.FORBIDDEN,
       INVITATION_EMAIL_MISMATCH: HttpStatus.FORBIDDEN,
       EMAIL_VERIFICATION_ALREADY_COMPLETED: HttpStatus.CONFLICT,
+      INVALID_API_KEY_SCOPES: HttpStatus.UNPROCESSABLE_ENTITY,
     };
 
     return codeMap[exception.code] ?? HttpStatus.UNPROCESSABLE_ENTITY;

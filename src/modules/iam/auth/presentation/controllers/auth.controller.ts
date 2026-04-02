@@ -24,6 +24,7 @@ import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { AuthRateLimitGuard } from '../guards/auth-rate-limit.guard';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { CurrentUser } from '../../../../../common/http/decorators/current-user.decorator';
+import { Idempotent } from '../../../../../common/http/decorators/idempotent.decorator';
 import type { AuthenticatedUserPayload } from '../../../../../common/http/authenticated-request';
 import { getAuthRuntimeConfig } from '../../../../../config/auth/auth-runtime.config';
 import { Throttle } from '@nestjs/throttler';
@@ -97,6 +98,7 @@ export class AuthController {
   }
 
   @Post('password-reset/request')
+  @Idempotent()
   @Throttle({
     auth: {
       limit: 3,
@@ -122,6 +124,7 @@ export class AuthController {
   }
 
   @Post('email-verification/request')
+  @Idempotent()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('bearer')

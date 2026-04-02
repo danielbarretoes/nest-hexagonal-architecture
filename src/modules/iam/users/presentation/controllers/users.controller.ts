@@ -36,13 +36,14 @@ import { RestoreUserUseCase } from '../../application/use-cases/restore-user.use
 import { UpdateUserProfileInOrganizationUseCase } from '../../application/use-cases/update-user-profile-in-organization.use-case';
 import { RegisterUserDto } from '../dto/register-user.dto';
 import { PaginationQueryDto } from '../../../../../shared/contracts/http/pagination-query.dto';
-import { JwtAuthGuard } from '../../../auth/presentation/guards/jwt-auth.guard';
+import { AccessAuthGuard } from '../../../auth/presentation/guards/access-auth.guard';
 import { UserNotFoundException } from '../../../shared/domain/exceptions';
 import { UserResponseDto } from '../dto/user-response.dto';
 import { PaginatedUsersResponseDto } from '../dto/paginated-users-response.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { CurrentUser } from '../../../../../common/http/decorators/current-user.decorator';
 import { CurrentOrganizationId } from '../../../../../common/http/decorators/current-organization-id.decorator';
+import { Idempotent } from '../../../../../common/http/decorators/idempotent.decorator';
 import type { AuthenticatedUserPayload } from '../../../../../common/http/authenticated-request';
 import { RequirePermissions } from '../../../../../common/http/decorators/require-permissions.decorator';
 import { PermissionGuard } from '../../../../../common/http/guards/permission.guard';
@@ -82,6 +83,7 @@ export class UsersController {
   }
 
   @Post('self-register')
+  @Idempotent()
   @ApiOperation({ summary: 'Register a standalone user identity' })
   @ApiBody({ type: RegisterUserDto })
   @ApiCreatedResponse({ type: UserResponseDto })
@@ -91,7 +93,8 @@ export class UsersController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @Idempotent()
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_USERS_WRITE)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Create a user inside the current organization' })
@@ -110,7 +113,7 @@ export class UsersController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_USERS_READ)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'List users for the current organization' })
@@ -125,7 +128,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_USERS_READ)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Get a user by id within the current organization' })
@@ -145,7 +148,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_USERS_WRITE)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Update a user profile within the current organization' })
@@ -170,7 +173,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_USERS_WRITE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth('bearer')
@@ -186,7 +189,7 @@ export class UsersController {
   }
 
   @Patch(':id/restore')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_USERS_WRITE)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Restore a soft deleted user within the current organization' })

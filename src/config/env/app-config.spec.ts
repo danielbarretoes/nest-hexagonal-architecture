@@ -31,6 +31,10 @@ describe('getAppConfig', () => {
       AUTH_RATE_LIMIT_ENABLED: 'false',
       AUTH_RATE_LIMIT_TTL_MS: '60000',
       AUTH_RATE_LIMIT_LIMIT: '10',
+      API_KEY_SECRET: 'your-api-key-secret-change-in-production-minimum-32-characters',
+      API_KEY_DEFAULT_TTL_DAYS: '90',
+      API_KEY_USAGE_WRITE_INTERVAL_MS: '300000',
+      USAGE_METERING_ENABLED: 'true',
       LOG_LEVEL: 'debug',
       LOG_JSON: 'false',
       LOG_SERVICE_NAME: 'hexagonal-api-test',
@@ -44,6 +48,30 @@ describe('getAppConfig', () => {
       EMAIL_VERIFICATION_PATH: '/verify-email',
       EMAIL_INVITATION_PATH: '/accept-invitation',
       EMAIL_WELCOME_PATH: '/login',
+      JOBS_ENABLED: 'false',
+      JOBS_PROVIDER: 'sqs',
+      JOBS_SQS_REGION: 'us-east-1',
+      JOBS_SQS_QUEUE_URL: '',
+      JOBS_SQS_MAX_MESSAGES: '5',
+      JOBS_SQS_WAIT_TIME_SECONDS: '10',
+      JOBS_SQS_VISIBILITY_TIMEOUT_SECONDS: '30',
+      JOBS_OUTBOX_BATCH_SIZE: '25',
+      JOBS_OUTBOX_POLL_INTERVAL_MS: '1000',
+      JOBS_OUTBOX_CLAIM_TIMEOUT_MS: '60000',
+      JOBS_OUTBOX_MAX_ATTEMPTS: '8',
+      JOBS_OUTBOX_RETRY_BASE_MS: '1000',
+      JOBS_OUTBOX_RETRY_MAX_MS: '60000',
+      JOBS_OUTBOX_CLEANUP_ENABLED: 'false',
+      JOBS_OUTBOX_CLEANUP_BATCH_SIZE: '200',
+      JOBS_OUTBOX_CLEANUP_INTERVAL_MS: '900000',
+      JOBS_OUTBOX_RETENTION_PUBLISHED_HOURS: '720',
+      JOBS_OUTBOX_RETENTION_COMPLETED_HOURS: '720',
+      JOBS_OUTBOX_RETENTION_DEAD_HOURS: '720',
+      JOBS_EMAIL_DELIVERY_MODE: 'sync',
+      WEBHOOKS_ENABLED: 'true',
+      WEBHOOKS_TIMEOUT_MS: '10000',
+      WEBHOOKS_SECRET_ENCRYPTION_KEY:
+        'your-webhook-secret-change-in-production-minimum-32-characters',
       HELMET_ENABLED: 'true',
       CORS_ENABLED: 'true',
       CORS_ORIGINS: 'https://app.example.com, https://admin.example.com',
@@ -69,6 +97,16 @@ describe('getAppConfig', () => {
     expect(config.logging.serviceName).toBe('hexagonal-api-test');
     expect(config.email.provider).toBe('ses');
     expect(config.email.appPublicUrl).toBe('https://app.hexagonal.test');
+    expect(config.apiKeys.defaultTtlDays).toBe(90);
+    expect(config.usageMetering.enabled).toBe(true);
+    expect(config.jobs.emailDeliveryMode).toBe('sync');
+    expect(config.jobs.outboxBatchSize).toBe(25);
+    expect(config.jobs.outboxClaimTimeoutMs).toBe(60000);
+    expect(config.jobs.outboxRetryMaxMs).toBe(60000);
+    expect(config.jobs.outboxCleanupEnabled).toBe(false);
+    expect(config.jobs.outboxCleanupBatchSize).toBe(200);
+    expect(config.webhooks.enabled).toBe(true);
+    expect(config.webhooks.timeoutMs).toBe(10000);
     expect(config.http.corsOrigins).toEqual([
       'https://app.example.com',
       'https://admin.example.com',

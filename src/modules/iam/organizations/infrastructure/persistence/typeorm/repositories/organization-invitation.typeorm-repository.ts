@@ -5,8 +5,10 @@ import { OrganizationInvitation } from '../../../../domain/entities/organization
 import type { OrganizationInvitationRepositoryPort } from '../../../../domain/ports/organization-invitation.repository.port';
 import { OrganizationInvitationTypeOrmEntity } from '../entities/organization-invitation.entity';
 import { TenantContextRequiredException } from '../../../../../../../shared/domain/exceptions';
-
-const RLS_RUNTIME_ROLE = process.env.DB_RLS_RUNTIME_ROLE || 'hexagonal_app_runtime';
+import {
+  applyTypeormRlsContext,
+  withTypeormManager,
+} from '../../../../../../../common/infrastructure/database/typeorm/transaction/typeorm-rls.utils';
 
 @Injectable()
 export class OrganizationInvitationTypeOrmRepository implements OrganizationInvitationRepositoryPort {
@@ -18,9 +20,10 @@ export class OrganizationInvitationTypeOrmRepository implements OrganizationInvi
   ) {}
 
   async findById(id: string): Promise<OrganizationInvitation | null> {
-    const entity = await this.dataSource.transaction(async (manager) => {
-      await manager.query(`SET LOCAL ROLE ${RLS_RUNTIME_ROLE}`);
-      await manager.query(`SELECT set_config('app.current_invitation_id', $1, true)`, [id]);
+    const entity = await withTypeormManager(this.dataSource, async (manager) => {
+      await applyTypeormRlsContext(manager, {
+        'app.current_invitation_id': id,
+      });
 
       return manager.getRepository(OrganizationInvitationTypeOrmEntity).findOne({
         where: { id },
@@ -38,11 +41,10 @@ export class OrganizationInvitationTypeOrmRepository implements OrganizationInvi
       throw new TenantContextRequiredException('organization_invitations');
     }
 
-    return this.dataSource.transaction(async (manager) => {
-      await manager.query(`SET LOCAL ROLE ${RLS_RUNTIME_ROLE}`);
-      await manager.query(`SELECT set_config('app.current_organization_id', $1, true)`, [
-        organizationId,
-      ]);
+    return withTypeormManager(this.dataSource, async (manager) => {
+      await applyTypeormRlsContext(manager, {
+        'app.current_organization_id': organizationId,
+      });
 
       return operation(manager.getRepository(OrganizationInvitationTypeOrmEntity));
     });

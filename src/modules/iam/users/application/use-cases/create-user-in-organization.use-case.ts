@@ -1,4 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { TRANSACTION_RUNNER_PORT } from '../../../../../shared/application/ports/transaction-runner.token';
+import { WEBHOOK_EVENT_PUBLISHER_PORT } from '../../../../../shared/application/ports/webhook-event-publisher.token';
+import type { TransactionRunnerPort } from '../../../../../shared/domain/ports/transaction-runner.port';
+import type { WebhookEventPublisherPort } from '../../../../../shared/domain/ports/webhook-event-publisher.port';
+import { WEBHOOK_EVENT_TYPES } from '../../../../../shared/domain/integration-events/webhook-event-types';
 import { PASSWORD_HASHER_PORT } from '../../../shared/application/ports/password-hasher.token';
 import type { PasswordHasherPort } from '../../../shared/domain/ports/password-hasher.port';
 import {
@@ -37,39 +42,57 @@ export class CreateUserInOrganizationUseCase {
     private readonly roleRepository: RoleRepositoryPort,
     @Inject(PASSWORD_HASHER_PORT)
     private readonly passwordHasher: PasswordHasherPort,
+    @Inject(TRANSACTION_RUNNER_PORT)
+    private readonly transactionRunner: TransactionRunnerPort,
+    @Inject(WEBHOOK_EVENT_PUBLISHER_PORT)
+    private readonly webhookEventPublisher: WebhookEventPublisherPort,
   ) {}
 
   async execute(command: CreateUserInOrganizationCommand): Promise<User> {
-    const existingUser = await this.userRepository.findByEmail(command.email, {
-      includeDeleted: true,
+    return this.transactionRunner.runInTransaction(async () => {
+      const existingUser = await this.userRepository.findByEmail(command.email, {
+        includeDeleted: true,
+      });
+
+      if (existingUser) {
+        throw new UserAlreadyExistsException(command.email);
+      }
+
+      const passwordHash = await this.passwordHasher.hash(command.password);
+      const props: CreateUserProps & { id: string } = {
+        id: crypto.randomUUID(),
+        email: command.email,
+        passwordHash,
+        firstName: command.firstName,
+        lastName: command.lastName,
+      };
+      const user = await this.userRepository.create(props);
+      const roleCode = command.roleCode ?? DEFAULT_ROLE_CODES[3];
+      const role = await this.roleRepository.findByCode(roleCode);
+
+      if (!role) {
+        throw new RoleNotFoundException(roleCode);
+      }
+
+      await this.memberRepository.create({
+        userId: user.id,
+        organizationId: command.organizationId,
+        roleId: role.id,
+      });
+
+      await this.webhookEventPublisher.publish({
+        type: WEBHOOK_EVENT_TYPES.IAM_USER_CREATED,
+        organizationId: command.organizationId,
+        payload: {
+          userId: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          roleCode,
+        },
+      });
+
+      return user;
     });
-
-    if (existingUser) {
-      throw new UserAlreadyExistsException(command.email);
-    }
-
-    const passwordHash = await this.passwordHasher.hash(command.password);
-    const props: CreateUserProps & { id: string } = {
-      id: crypto.randomUUID(),
-      email: command.email,
-      passwordHash,
-      firstName: command.firstName,
-      lastName: command.lastName,
-    };
-    const user = await this.userRepository.create(props);
-    const roleCode = command.roleCode ?? DEFAULT_ROLE_CODES[3];
-    const role = await this.roleRepository.findByCode(roleCode);
-
-    if (!role) {
-      throw new RoleNotFoundException(roleCode);
-    }
-
-    await this.memberRepository.create({
-      userId: user.id,
-      organizationId: command.organizationId,
-      roleId: role.id,
-    });
-
-    return user;
   }
 }

@@ -5,8 +5,13 @@ Reusable NestJS IAM foundation built with a strict hexagonal style.
 It currently includes:
 
 - `users`, `organizations`, and `auth` as explicit IAM features
+- `api-keys` as tenant-scoped machine credentials owned by a user membership
+- `idempotency` as an opt-in HTTP safety layer for create-style endpoints
 - `roles` as the RBAC foundation for IAM permissions
 - `http_logs` as an explicit observability feature
+- `usage-metering` as an aggregated API-key activity feature
+- `webhooks` as a tenant-scoped outbound integration feature with durable delivery jobs
+- `jobs` as a durable async execution foundation with PostgreSQL outbox, SQS, and a separate worker runtime
 - strict `domain -> application -> infrastructure/presentation` boundaries
 - RFC 7807 problem details with `traceId`
 - Swagger / OpenAPI documentation
@@ -14,16 +19,17 @@ It currently includes:
 - JWT auth with password hashing
 - persisted RBAC roles and permissions seeded from the baseline migration
 - soft delete + restore for `users` and `organizations`
-- PostgreSQL RLS foundation for tenant-scoped `members`
+- PostgreSQL RLS foundation for tenant-scoped `members`, `organization_invitations`, `http_logs`, and `api_keys`
 - AsyncLocalStorage tenant context for request-scoped tenant propagation
 - validated runtime configuration, health probes, graceful shutdown, and production HTTP hardening
-- transactional email through a shared port with Amazon SES and a no-op local/test fallback
+- transactional email through a shared port with Amazon SES plus optional durable async dispatch through the outbox + SQS path
 - structured JSON stdout logging with `traceId` correlation ready for ELK shippers
 
 ## Project Map
 
 ```text
 src/
+├── jobs.worker.ts
 ├── app.module.ts
 ├── app.setup.ts
 ├── common/                         # technical cross-cutting concerns only
@@ -37,26 +43,37 @@ src/
 ├── database/
 │   └── migrations/
 ├── health/                         # liveness/readiness deployment endpoints
+├── worker.module.ts                # standalone Nest application context for background jobs
 ├── modules/
 │   ├── iam/
 │   │   ├── iam-authorization-access.module.ts
 │   │   ├── auth/
 │   │   │   └── auth.module.ts
+│   │   ├── api-keys/
+│   │   │   └── api-keys-access.module.ts
 │   │   ├── organizations/
 │   │   │   └── organizations-access.module.ts
 │   │   ├── roles/
 │   │   ├── users/
 │   │   │   └── users-access.module.ts
 │   │   └── shared/                 # shared kernel inside IAM
+│   ├── idempotency/
+│   ├── jobs/
+│   │   └── jobs-access.module.ts
 │   ├── notifications/
 │   │   └── email/
 │   │       └── email-access.module.ts
-│   └── observability/
-│       └── http-logs/
+│   ├── observability/
+│   │   └── http-logs/
+│   ├── usage-metering/
+│   │   └── usage-metering-access.module.ts
+│   └── webhooks/
+│       └── webhooks-access.module.ts
 └── shared/                         # global shared kernel
     ├── contracts/
     └── domain/
 test/
+├── api-keys.e2e-spec.ts
 ├── auth.e2e-spec.ts
 ├── email-verification.e2e-spec.ts
 ├── http-logs.e2e-spec.ts
@@ -75,12 +92,12 @@ test/
 
 ### Request flow
 
-1. `JwtAuthGuard` authenticates protected routes
+1. `JwtAuthGuard` protects JWT-only routes and `AccessAuthGuard` protects routes that also allow API keys
 2. `PermissionGuard` resolves `@RequirePermissions(...)` metadata for tenant-scoped operations
 3. `TenantInterceptor` validates the effective tenant and opens the async tenant context
 4. Controller validates DTOs and calls a use case in `application`
 5. Use cases orchestrate ports plus tenant policies for sensitive operations
-6. Infrastructure adapters implement those ports with TypeORM, bcrypt, JWT, etc.
+6. Infrastructure adapters implement those ports with TypeORM, bcrypt, JWT, SQS, SES, etc.
 7. Errors are translated to RFC 7807 in the global HTTP filter
 
 ### Layer responsibilities
@@ -196,6 +213,24 @@ Why:
 - rate limiting on auth endpoints
 - bcrypt password hashing
 - JWT guard
+- API-key-aware access guard for tenant-scoped routes that should allow machine access
+
+### API Keys
+
+- tenant-scoped `POST /api-keys`, `GET /api-keys`, and `DELETE /api-keys/:id`
+- API keys are owned by a real user and bound to a single organization
+- the raw secret is returned only once at creation time and only the hash is persisted
+- each key carries scopes that must be a subset of the owner's current membership permissions
+- keys expire by default and can be revoked without deleting historical auditability
+- machine callers can authenticate with `x-api-key` or `Authorization: ApiKey <token>`
+- authorization remains membership-aware because API key auth still resolves the owner user plus tenant membership before `PermissionGuard`
+
+### Idempotency
+
+- `@Idempotent()` opt-in endpoints require an `Idempotency-Key` header
+- successful create-style responses can be replayed safely without re-executing the use case
+- failed executions release the pending key so callers can retry instead of caching error responses
+- current idempotent endpoints cover self-register, tenant user creation, organizations, members, invitations, API keys, password reset request, email verification request, and webhook endpoint creation
 
 ### Memberships
 
@@ -228,6 +263,21 @@ Why:
 - supports lookup by `id`, `traceId`, and paginated filtering by `createdFrom`, `createdTo`, and `statusFamily`
 - read access is tenant-scoped and reinforced by PostgreSQL RLS plus fail-closed repository access
 
+### Usage Metering
+
+- `src/modules/usage-metering` aggregates API key traffic into hourly counters
+- metering is written off the HTTP request lifecycle through a dedicated interceptor instead of leaking into controllers
+- current read endpoint is tenant-scoped `GET /usage-metrics/api-keys`
+- metering is optional and can stay enabled locally without external providers because it persists to PostgreSQL only
+
+### Webhooks
+
+- tenant-scoped `POST /webhooks`, `GET /webhooks`, and `DELETE /webhooks/:id`
+- endpoint secrets are revealed once, then stored encrypted at rest
+- outbound deliveries are persisted as durable outbox jobs and executed by the worker runtime
+- webhook payloads are signed with timestamped HMAC headers for downstream verification
+- delivery distinguishes retryable transport failures from non-retryable client errors and uses execution receipts for idempotent completion
+
 ### Audit Logs
 
 - separate `audit_logs` table for administrative actions
@@ -239,15 +289,36 @@ Why:
 - `src/shared/domain/ports/transactional-email.port.ts` defines the outbound email contract known by the core
 - `src/modules/notifications/email` provides the technical adapter layer and Nest wiring for email delivery
 - Amazon SES is the production adapter and a no-op adapter keeps local/test environments stable when `EMAIL_ENABLED=false`
+- email delivery can run in direct/synchronous mode or persist to the durable outbox when `JOBS_EMAIL_DELIVERY_MODE=async`
 - current templates cover password reset, email verification, organization invitation, and self-register welcome
 - public URLs are composed from `APP_PUBLIC_URL` plus the configured path variables instead of being hard-coded inside use cases
+- the API can boot without SES credentials or connectivity while `EMAIL_ENABLED=false`; outbound email becomes a no-op until you opt in
+
+### Async Jobs
+
+- `src/shared/domain/ports/async-job-dispatcher.port.ts` defines the outbound async job contract
+- `src/modules/jobs` persists async work to `job_outbox` inside the business transaction and relays it to SQS from a separate worker
+- `src/jobs.worker.ts` boots a separate Nest application context so workers stay isolated from the HTTP process
+- the outbox relay claims pending jobs with `FOR UPDATE SKIP LOCKED`, applies capped exponential backoff, and marks exhausted jobs as `dead`
+- stale `claimed` rows older than `JOBS_OUTBOX_CLAIM_TIMEOUT_MS` are reclaimed automatically so relay crashes do not strand work forever
+- the SQS worker validates payloads, distinguishes retryable vs non-retryable failures, and records execution receipts for idempotent handlers
+- the current async payload is transactional email, but the envelope, outbox, and handler registry are ready for more job types
+- delivery semantics are intentionally `at-least-once`; idempotent handlers reduce duplicate side effects after success
+- the SQS worker uses long polling, configurable batch size, visibility timeout, and delete-on-success semantics
+- the API can boot without SQS while `JOBS_ENABLED=false`; when jobs are enabled the template requires a valid queue URL, but not a live SQS connection at bootstrap time
+- manual dead-job replay is available through `npm run start:jobs:replay -- --limit 100` or `npm run start:jobs:replay -- --ids <uuid,uuid>`
+- outbox retention cleanup is available as an opt-in worker capability through `JOBS_OUTBOX_CLEANUP_ENABLED=true`
 
 ## Runtime Baseline
 
 - runtime configuration is validated through `src/config/env/app-config.ts`
 - startup fails fast on invalid combinations such as `DB_SYNC=true` in production, `DB_POOL_MIN > DB_POOL_MAX`, or short JWT secrets
+- `API_KEY_SECRET`, `API_KEY_DEFAULT_TTL_DAYS`, and `API_KEY_USAGE_WRITE_INTERVAL_MS` define the API key security baseline
+- `USAGE_METERING_ENABLED` enables aggregated PostgreSQL-backed API key usage counters
+- `JOBS_ENABLED`, `JOBS_PROVIDER`, `JOBS_SQS_*`, `JOBS_OUTBOX_*`, `JOBS_OUTBOX_CLAIM_TIMEOUT_MS`, and `JOBS_EMAIL_DELIVERY_MODE` define the async job runtime contract
 - `LOG_LEVEL`, `LOG_JSON`, and `LOG_SERVICE_NAME` define the external logging baseline
 - `EMAIL_ENABLED`, `EMAIL_SES_REGION`, `EMAIL_FROM_*`, `EMAIL_BRAND_NAME`, `APP_PUBLIC_URL`, and the email path variables define the outbound email contract
+- `WEBHOOKS_ENABLED`, `WEBHOOKS_TIMEOUT_MS`, and `WEBHOOKS_SECRET_ENCRYPTION_KEY` define the outbound webhook baseline
 - `HELMET_ENABLED`, `CORS_ENABLED`, `CORS_ORIGINS`, and `HTTP_BODY_LIMIT` define the HTTP hardening contract
 - `DB_SSL_ENABLED` and `DB_SSL_REJECT_UNAUTHORIZED` control explicit PostgreSQL TLS behavior instead of hard-coded defaults
 - successful and failed HTTP requests emit structured JSON lines to stdout/stderr with `traceId`, `userId`, and `organizationId` when available
@@ -266,6 +337,7 @@ Why:
 Detailed guide:
 
 - [Database Workflow](./docs/database-workflow.md)
+- [Jobs Operations](./docs/jobs-operations.md)
 
 Commands:
 
@@ -279,7 +351,7 @@ Key rules:
 - the repository currently keeps a single baseline migration instead of a historical migration chain
 - `DB_MIGRATIONS_RUN=true` lets runtime bootstrap from migrations
 - e2e tests rebuild schema from migrations
-- RLS currently applies to `members`, which is the tenant-scoped table in the current model
+- RLS currently applies to `members`, `organization_invitations`, `http_logs`, and `api_keys`
 - the baseline migration also seeds RBAC roles and permissions used by tenant authorization
 
 ### Environment files
@@ -314,6 +386,24 @@ If you had an older local database created from pre-squash migrations, reset tha
 - `.env.test` disables Swagger for e2e to keep the test surface minimal
 - the API uses Nest native URI versioning, so current endpoints are exposed under `/api/v1/...`
 
+## Worker Runtime
+
+- `npm run start:worker` boots the background worker against the current environment
+- `npm run start:worker:dev` watches the worker entrypoint during local development
+- `npm run start:worker:prod` runs the compiled worker from `dist/jobs.worker.js`
+- `npm run start:jobs:replay -- --limit 100` requeues the oldest dead outbox rows back to `pending`
+- `npm run start:jobs:replay -- --ids <uuid,uuid>` requeues a specific dead outbox subset after an operator review
+- keep the HTTP API and the worker as separate processes in production so queue pressure does not affect request latency
+
+### Optional Providers
+
+- the template does not require SQS or SES to start locally
+- with `EMAIL_ENABLED=false`, transactional email resolves to a no-op adapter
+- with `JOBS_ENABLED=false`, async dispatch resolves to a no-op adapter and both outbox relay / SQS polling workers stay disabled
+- `JOBS_EMAIL_DELIVERY_MODE=async` is the opt-in point where the API begins to persist durable outbox jobs and therefore requires `JOBS_ENABLED=true`
+- enabling `JOBS_ENABLED=true` requires a syntactically valid `JOBS_SQS_QUEUE_URL`, but the app does not probe SQS during bootstrap
+- enabling `EMAIL_ENABLED=true` requires valid email config, but the app does not probe SES during bootstrap
+
 ## Quality Gates
 
 Run all of these before considering work complete:
@@ -341,8 +431,8 @@ Or run the full local contract in one command:
 
 Current state:
 
-- strong candidate as a hexagonal SaaS API template for teams that want tenant-aware IAM, RBAC, PostgreSQL RLS, and enforceable architectural boundaries from day one
-- much closer to production than a teaching-only sample because it now includes CI, runtime config validation, SES-ready email delivery, ELK-ready stdout JSON logging, health probes, graceful shutdown, coverage gates, and operational retention guidance
+- strong candidate as a hexagonal SaaS API template for teams that want tenant-aware IAM, RBAC, PostgreSQL RLS, API keys, async jobs, and enforceable architectural boundaries from day one
+- much closer to production than a teaching-only sample because it now includes CI, runtime config validation, SES-ready email delivery, a durable PostgreSQL outbox with SQS relay, idempotent request handling, tenant webhooks, usage metering, ELK-ready stdout JSON logging, health probes, graceful shutdown, coverage gates, and operational retention guidance
 - suitable as a base template for internal platforms or early-stage SaaS backends that will keep evolving with project-specific adapters
 
 What is already strong:
@@ -350,17 +440,23 @@ What is already strong:
 - strict `domain -> application -> infrastructure/presentation` direction with architecture tests
 - tenant-scoped request validation plus PostgreSQL RLS on the critical current tables
 - usable auth lifecycle with short-lived JWTs, opaque refresh sessions, logout/logout-all, reset, verification, and rate limiting
+- tenant-scoped API keys with one-time reveal, hashing, expiration, revocation, and permission-scoped machine access
 - separation between request observability (`http_logs`) and administrative auditability (`audit_logs`)
-- decoupled outbound email through a shared port plus a concrete SES adapter
+- transactional side effects can now commit business data plus durable async intent in one PostgreSQL transaction
+- decoupled outbound email through a shared port plus direct delivery and outbox-backed async delivery adapters
+- opt-in request idempotency for critical write endpoints
+- tenant-scoped webhooks with encrypted secrets, durable delivery, and signed callbacks
+- built-in PostgreSQL-backed usage metering for API-key traffic
+- a clean worker entrypoint, outbox relay, dead-job replay command, retention cleanup worker, and SQS queue adapter that give the template a standard foundation for background execution
 - ELK-friendly structured request logging without coupling the core to Logstash or vendor SDKs
 - reproducible local and CI quality gates with PostgreSQL-backed e2e coverage
 
 What is still intentionally left to downstream products:
 
-- asynchronous delivery guarantees such as outbox/retry workers or dead-letter handling for email
+- operational queue policies such as managed DLQ provisioning and queue-provider-specific alerting / dashboards
 - broader observability stacks such as OpenTelemetry, metrics exporters, or vendor-specific tracing
 - stronger per-project retention/compliance automation beyond the documented baseline
-- SaaS-specific modules such as billing, API keys, feature flags, and background jobs
+- SaaS-specific modules such as billing, feature flags, customer-facing plans, and invoicing
 
 ## Adding A New Feature
 
@@ -418,6 +514,7 @@ Checklist:
 - tenant context comes from request lifecycle
 - the effective tenant is validated against real membership before request-scoped tenant context is opened
 - `members` uses PostgreSQL RLS with `app.current_organization_id`
+- API keys bind the effective tenant automatically, while JWT callers still provide `x-organization-id` on tenant-scoped routes
 - repository code sets tenant context before tenant-scoped member queries
 - tenant-scoped HTTP routes use `@RequirePermissions(...)` plus the shared `PermissionGuard`
 - sensitive application flows add tenant policies on top of guards, instead of encoding all rules in HTTP
@@ -450,7 +547,13 @@ If you want to push this template further:
 - add richer value objects such as `Email` and `OrganizationName`
 - add more tenant-scoped tables with RLS
 - harden authorization policies per feature as more bounded contexts appear
-- add outbox/retry workers, richer email branding, and stronger external observability beyond the stdout JSON baseline
+- add richer webhook event families, richer email branding, and stronger external observability beyond the stdout JSON baseline
+
+### Outbox Retention Guidance
+
+- keep `JOBS_OUTBOX_CLEANUP_ENABLED=false` until you have decided the real queue retention and DLQ replay window for your environment
+- when you enable cleanup, make `JOBS_OUTBOX_RETENTION_PUBLISHED_HOURS` and `JOBS_OUTBOX_RETENTION_COMPLETED_HOURS` longer than the maximum time a duplicate message could still be replayed
+- deleting a `completed` row also deletes its execution receipts, so aggressive retention can weaken duplicate suppression if a queue message resurfaces later
 
 Not part of the base template by default:
 

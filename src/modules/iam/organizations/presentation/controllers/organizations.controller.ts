@@ -35,11 +35,13 @@ import { RestoreOrganizationUseCase } from '../../application/use-cases/restore-
 import { RenameOrganizationUseCase } from '../../application/use-cases/rename-organization.use-case';
 import { CreateOrganizationDto } from '../dto/create-organization.dto';
 import { PaginationQueryDto } from '../../../../../shared/contracts/http/pagination-query.dto';
+import { AccessAuthGuard } from '../../../auth/presentation/guards/access-auth.guard';
 import { JwtAuthGuard } from '../../../auth/presentation/guards/jwt-auth.guard';
 import { OrganizationNotFoundException } from '../../../shared/domain/exceptions';
 import { OrganizationResponseDto } from '../dto/organization-response.dto';
 import { PaginatedOrganizationsResponseDto } from '../dto/paginated-organizations-response.dto';
 import { CurrentUser } from '../../../../../common/http/decorators/current-user.decorator';
+import { Idempotent } from '../../../../../common/http/decorators/idempotent.decorator';
 import type { AuthenticatedUserPayload } from '../../../../../common/http/authenticated-request';
 import { CurrentOrganizationId } from '../../../../../common/http/decorators/current-organization-id.decorator';
 import { RequirePermissions } from '../../../../../common/http/decorators/require-permissions.decorator';
@@ -68,6 +70,7 @@ export class OrganizationsController {
   }
 
   @Post()
+  @Idempotent()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Create a new organization and assign the caller as owner' })
@@ -97,7 +100,7 @@ export class OrganizationsController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_ORGANIZATIONS_READ)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Get the current organization by id' })
@@ -117,7 +120,7 @@ export class OrganizationsController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_ORGANIZATIONS_WRITE)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Rename the current organization' })
@@ -139,7 +142,7 @@ export class OrganizationsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_ORGANIZATIONS_WRITE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth('bearer')
@@ -154,7 +157,7 @@ export class OrganizationsController {
   }
 
   @Patch(':id/restore')
-  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @UseGuards(AccessAuthGuard, PermissionGuard)
   @RequirePermissions(PERMISSION_CODES.IAM_ORGANIZATIONS_WRITE)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Restore the current organization' })

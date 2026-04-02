@@ -164,3 +164,18 @@ export class InvitationEmailMismatchException extends DomainException {
     );
   }
 }
+
+export class ApiKeyNotFoundException extends DomainException {
+  constructor(identifier: string) {
+    super(`API key not found: ${identifier}`, 'API_KEY_NOT_FOUND');
+  }
+}
+
+export class InvalidApiKeyScopesException extends DomainException {
+  constructor() {
+    super(
+      'Requested API key scopes must be a subset of the authenticated membership permissions',
+      'INVALID_API_KEY_SCOPES',
+    );
+  }
+}

@@ -28,6 +28,7 @@ import { CreateOrganizationInvitationUseCase } from './application/use-cases/cre
 import { AcceptOrganizationInvitationUseCase } from './application/use-cases/accept-organization-invitation.use-case';
 import { AuditLogsAccessModule } from '../../observability/audit-logs/audit-logs-access.module';
 import { EmailAccessModule } from '../../notifications/email/email-access.module';
+import { WebhooksAccessModule } from '../../webhooks/webhooks-access.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { EmailAccessModule } from '../../notifications/email/email-access.module
     UsersAccessModule,
     AuditLogsAccessModule,
     EmailAccessModule,
+    WebhooksAccessModule,
   ],
   controllers: [OrganizationsController, MembersController, OrganizationInvitationsController],
   providers: [

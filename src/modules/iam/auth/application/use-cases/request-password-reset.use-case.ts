@@ -8,8 +8,11 @@ import type { PasswordHasherPort } from '../../../shared/domain/ports/password-h
 import { UserActionToken } from '../../domain/entities/user-action-token.entity';
 import { ActionTokenNotFoundException } from '../../../shared/domain/exceptions';
 import { TRANSACTIONAL_EMAIL_PORT } from '../../../../../shared/application/ports/transactional-email.token';
+import { TRANSACTION_RUNNER_PORT } from '../../../../../shared/application/ports/transaction-runner.token';
 import { createOpaqueToken } from '../../../../../shared/domain/security/opaque-token';
 import type { TransactionalEmailPort } from '../../../../../shared/domain/ports/transactional-email.port';
+import type { TransactionRunnerPort } from '../../../../../shared/domain/ports/transaction-runner.port';
+import { getAppConfig } from '../../../../../config/env/app-config';
 
 export interface RequestPasswordResetResponse {
   resetToken: string;
@@ -26,9 +29,43 @@ export class RequestPasswordResetUseCase {
     private readonly passwordHasher: PasswordHasherPort,
     @Inject(TRANSACTIONAL_EMAIL_PORT)
     private readonly transactionalEmailPort: TransactionalEmailPort,
+    @Inject(TRANSACTION_RUNNER_PORT)
+    private readonly transactionRunner: TransactionRunnerPort,
   ) {}
 
   async execute(email: string): Promise<RequestPasswordResetResponse> {
+    if (getAppConfig().jobs.emailDeliveryMode === 'async') {
+      return this.transactionRunner.runInTransaction(async () => {
+        const preparedReset = await this.preparePasswordReset(email);
+
+        await this.transactionalEmailPort.send(
+          this.toPasswordResetMessage(preparedReset, preparedReset.resetToken),
+        );
+
+        return {
+          resetToken: preparedReset.resetToken,
+        };
+      });
+    }
+
+    const preparedReset = await this.transactionRunner.runInTransaction(() =>
+      this.preparePasswordReset(email),
+    );
+
+    await this.transactionalEmailPort.send(
+      this.toPasswordResetMessage(preparedReset, preparedReset.resetToken),
+    );
+
+    return {
+      resetToken: preparedReset.resetToken,
+    };
+  }
+
+  private async preparePasswordReset(email: string): Promise<{
+    userEmail: string;
+    recipientName: string;
+    resetToken: string;
+  }> {
     const user = await this.userRepository.findByEmail(email, {
       includeDeleted: true,
     });
@@ -58,16 +95,27 @@ export class RequestPasswordResetUseCase {
         expiresAt: new Date(Date.now() + 15 * 60 * 1000),
       }),
     );
-    await this.transactionalEmailPort.send({
-      type: 'password_reset',
-      to: user.email,
-      recipientName: user.fullName,
-      resetToken: opaqueToken.token,
-      expiresInMinutes: 15,
-    });
 
     return {
+      userEmail: user.email,
+      recipientName: user.fullName,
       resetToken: opaqueToken.token,
+    };
+  }
+
+  private toPasswordResetMessage(
+    preparedReset: {
+      userEmail: string;
+      recipientName: string;
+    },
+    resetToken: string,
+  ) {
+    return {
+      type: 'password_reset' as const,
+      to: preparedReset.userEmail,
+      recipientName: preparedReset.recipientName,
+      resetToken,
+      expiresInMinutes: 15,
     };
   }
 }

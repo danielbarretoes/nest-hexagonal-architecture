@@ -1,158 +1,158 @@
-# Auditoría Actualizada Del Proyecto
+# Updated Project Audit
 
-Estado revisado después de contrastar documentación, estructura real de `src` y cambios recientes.
-
----
-
-## Veredicto Ejecutivo
-
-El proyecto **sí sirve como base sólida para una plantilla backend API hexagonal**. La separación de capas es coherente, el lenguaje de la documentación es didáctico, y el código ya enseña varios patrones útiles sin caer todavía en complejidad enterprise innecesaria.
-
-Puntuación actual orientativa:
-
-- Cumplimiento hexagonal: `9/10` por estructura por capas y puertos bien mantenida
-- Calidad como plantilla: `8.5/10` por ser muy reutilizable, con algunas decisiones de composición a cuidar
-- Seguridad práctica: `8/10` porque JWT y sanitización de logs están razonablemente encaminados
-- Mantenibilidad: `8.5/10` por repo claro, documentación buena y convenciones estables
-- Escalabilidad equilibrada: `7.5/10` porque la base está bien, pero varias mejoras deben seguir siendo opcionales
+State reviewed after cross-checking the documentation, the real `src` structure, and recent changes.
 
 ---
 
-## Lo Mejor Del Proyecto
+## Executive Verdict
 
-- Separación `domain -> application -> infrastructure/presentation` clara y repetible
-- Puertos de dominio y tokens de DI bien separados
-- `src/shared`, `src/modules/iam/shared` y `src/common` tienen una semántica comprensible
-- Multi-tenancy con RLS y `AsyncLocalStorage` ya integrada
-- Documentación suficiente para que otra persona entienda el mapa del repo
-- Suite de arquitectura que complementa la disciplina de imports
+The project **does work as a solid base for a hexagonal backend API template**. The layer separation is coherent, the documentation is didactic, and the code already demonstrates several useful patterns without falling into unnecessary enterprise complexity.
 
----
+Current directional score:
 
-## Hallazgos Vigentes
-
-### Alta prioridad
-
-#### 1. La composición Nest debe seguir siendo didáctica
-
-El principal riesgo de plantilla no está ya en las capas de dominio, sino en **cómo los módulos se conectan entre sí**. Importar módulos completos para obtener un provider enseña un patrón demasiado amplio para algo que debería ser mínimo y explícito.
-
-Estado actual:
-
-- Este riesgo ya fue reducido introduciendo módulos de acceso pequeños (`users-access.module.ts`, `organizations-access.module.ts`)
-- Conviene mantener esta regla en la documentación y en futuras features
-
-#### 2. La auditoría previa mezclaba deuda real con problemas ya resueltos
-
-Dos hallazgos anteriores quedaron desactualizados:
-
-- JWT ya no parsea `.env` manualmente como antes
-- `http-logs` ya aplica sanitización de payloads y stack traces antes de persistir
-
-Eso hacía que el documento anterior dejara una impresión peor que el estado real del proyecto.
-
-### Media prioridad
-
-#### 3. Falta endurecer reglas de arquitectura fuera de `src/modules`
-
-Antes el test arquitectónico revisaba solo `src/modules`. Para una plantilla fuerte también conviene vigilar:
-
-- que `src/shared` no dependa de features ni de `src/common`
-- que `src/common` no empiece a absorber lógica o acoplamientos de bounded contexts
-
-#### 4. `User.passwordHash` sigue expuesto en la entidad de dominio
-
-No es una fuga inmediata porque los DTOs de salida no lo publican, pero sigue siendo una API de dominio demasiado permisiva para una plantilla ejemplar.
-
-#### 5. La validación del rol runtime de RLS sigue siendo mejorable
-
-El repositorio de members sigue usando `DB_RLS_RUNTIME_ROLE` con fallback. Funciona como baseline, pero una validación de arranque haría el template más robusto para equipos que clonen el proyecto sin conocer PostgreSQL/RLS en detalle.
-
-### Baja prioridad
-
-#### 6. `rehydrate()` normaliza de nuevo datos ya persistidos
-
-No es un bug claro hoy, pero sí una decisión que conviene mantener consistente con `create()` y con la base de datos.
-
-#### 7. No hay Unit of Work ni Domain Events
-
-Esto **no es una carencia del template base**. Solo pasa a ser deuda real cuando el proyecto crece y una misma operación toca múltiples agregados o integraciones.
+- Hexagonal compliance: `9/10` because the layered structure and port boundaries are well maintained
+- Template quality: `8.5/10` because it is highly reusable, with a few composition decisions still worth watching
+- Practical security: `8/10` because JWT and log sanitization are reasonably well handled
+- Maintainability: `8.5/10` because the repo is clear, the documentation is good, and the conventions are stable
+- Balanced scalability: `7.5/10` because the base is strong, but several improvements should remain optional
 
 ---
 
-## Hallazgos Cerrados O Parcialmente Resueltos
+## Strongest Areas
 
-Estos puntos no deberían seguir tratarse como deuda principal:
-
-- `AuthModule -> UsersModule` como dependencia amplia: mitigado con módulos de acceso más pequeños
-- `TenantModule` / `HttpLogsModule` importando features completas para reutilizar providers: mitigado con el mismo patrón
-- JWT leído desde parseo manual de `.env`: ya no aplica en esa forma
-- logs HTTP sin sanitización: ya no aplica en esa forma
-- autorización tenant y `http-logs` basada solo en roles hardcodeados: ya no aplica; ahora existe una base RBAC persistida con permisos
-
----
-
-## Evaluación De Las Notas (`notes.md`)
-
-### Lo que sí tiene sentido
-
-- Pedir un proyecto ejemplar y no solo “correcto”
-- Llevar `roles` persistidos y permisos por módulo al núcleo del IAM para mejorar extensibilidad
-- Considerar auditoría de negocio y observabilidad más avanzada como crecimiento posterior
-
-### Lo que no conviene hacer ya en el template base
-
-#### Quitar `modules/iam/shared`
-
-No parece buena idea. Hoy esa carpeta sí tiene sentido como shared kernel interno de IAM:
-
-- excepciones de negocio reutilizadas entre features
-- contrato de password hasher compartido por `auth` y `users`
-
-Eliminarla haría el modelo menos explícito, no más limpio.
-
-#### Mantener el RBAC nuevo contenido y didáctico
-
-Ahora que el template ya incorpora `roles`, `permissions` y `role_permissions`, la recomendación deja de ser “posponerlo” y pasa a ser “mantenerlo contenido”.
-
-Recomendación:
-
-- conservar una baseline seeded simple (`owner`, `admin`, `manager`, `member`, `guest`)
-- evitar meter de inmediato UI/API avanzada de administración de roles si no aporta claridad a la plantilla
-
-#### Meter OpenTelemetry/ELK/Grafana en el core
-
-Eso debería ser una capa opcional de madurez, no un requisito del template base.
+- Clear and repeatable `domain -> application -> infrastructure/presentation` separation
+- Domain ports and DI tokens are cleanly separated
+- `src/shared`, `src/modules/iam/shared`, and `src/common` have understandable semantics
+- Multi-tenancy with RLS and `AsyncLocalStorage` is already integrated
+- Documentation is sufficient for another developer to understand the repository map
+- The architecture suite reinforces import discipline
 
 ---
 
-## Recomendaciones Prioritarias Reales
+## Active Findings
 
-### Prioridad 1
+### High Priority
 
-- Mantener y documentar el patrón de módulos de acceso finos para no enseñar acoplamientos Nest demasiado amplios
-- Mantener la guía de fronteras entre `common`, `shared` global e `iam/shared`
-- Hacer que la auditoría/documentación refleje el estado real del código
+#### 1. Nest composition should remain didactic
 
-### Prioridad 2
+The main template risk is no longer in the domain layers, but in **how modules are wired together**. Importing full modules just to obtain a provider teaches an overly broad pattern for something that should stay minimal and explicit.
 
-- Reforzar el test arquitectónico para `src/common` y `src/shared`
-- Evaluar endurecimiento de `passwordHash` en la entidad `User`
-- Evaluar validación explícita del rol runtime de RLS al arrancar
+Current state:
 
-### Prioridad 3
+- This risk has already been reduced by introducing small access modules (`users-access.module.ts`, `organizations-access.module.ts`)
+- This rule should remain documented and preserved in future features
 
-- endurecer el arranque y la documentación del nuevo RBAC base
-- dejar audit logs de negocio, domain events y OpenTelemetry como fase de crecimiento
+#### 2. The previous audit mixed real debt with already resolved issues
+
+Two earlier findings are now outdated:
+
+- JWT no longer parses `.env` manually as it once did
+- `http-logs` already sanitizes payloads and stack traces before persisting them
+
+That made the earlier document leave a worse impression than the actual state of the project.
+
+### Medium Priority
+
+#### 3. Architecture rules still need to be hardened outside `src/modules`
+
+The architecture test used to review only `src/modules`. For a stronger template it is also worth guarding:
+
+- that `src/shared` does not depend on features or `src/common`
+- that `src/common` does not start absorbing business logic or bounded-context coupling
+
+#### 4. `User.passwordHash` is still exposed on the domain entity
+
+It is not an immediate leak because output DTOs do not expose it, but it is still a domain API that is more permissive than ideal for an exemplary template.
+
+#### 5. Validation of the runtime RLS role can still be improved
+
+The members repository still uses `DB_RLS_RUNTIME_ROLE` with a fallback. It works as a baseline, but startup validation would make the template more robust for teams cloning the project without deep PostgreSQL/RLS knowledge.
+
+### Low Priority
+
+#### 6. `rehydrate()` normalizes already persisted data again
+
+It is not a clear bug today, but it is a decision that should stay consistent with `create()` and the database.
+
+#### 7. There is no Unit of Work or Domain Events layer
+
+This **is not a gap in the base template**. It only becomes real debt when the project grows and a single operation touches multiple aggregates or integrations.
 
 ---
 
-## Conclusión
+## Closed Or Partially Resolved Findings
 
-Si el objetivo es una **plantilla hexagonal backend API equilibrada**, este repositorio va por muy buen camino. Lo correcto ahora no es “meter más arquitectura”, sino:
+These points should no longer be treated as primary debt:
 
-1. afinar composición y guardrails
-2. mantener la documentación honesta
-3. resistir la tentación de volver la plantilla demasiado enterprise demasiado pronto
+- `AuthModule -> UsersModule` as a broad dependency: mitigated with smaller access modules
+- `TenantModule` / `HttpLogsModule` importing full features just to reuse providers: mitigated with the same pattern
+- JWT read from manual `.env` parsing: no longer applies in that form
+- HTTP logs without sanitization: no longer applies in that form
+- tenant authorization and `http-logs` based only on hardcoded roles: no longer applies; there is now a persisted RBAC base with permissions
 
-Última revisión: 2026-04-01
+---
+
+## Notes Evaluation (`notes.md`)
+
+### What still makes sense
+
+- Asking for an exemplary project rather than one that is merely “correct”
+- Moving persisted `roles` and per-module permissions into the IAM core to improve extensibility
+- Considering business audit logging and more advanced observability as later growth areas
+
+### What should not be done yet in the base template
+
+#### Removing `modules/iam/shared`
+
+This does not seem like a good idea. Today that folder makes sense as an internal IAM shared kernel:
+
+- business exceptions reused across features
+- a password hasher contract shared by `auth` and `users`
+
+Removing it would make the model less explicit, not cleaner.
+
+#### Keeping the new RBAC contained and didactic
+
+Now that the template already includes `roles`, `permissions`, and `role_permissions`, the recommendation is no longer “postpone it” but rather “keep it contained”.
+
+Recommendation:
+
+- keep a simple seeded baseline (`owner`, `admin`, `manager`, `member`, `guest`)
+- avoid adding advanced role-management UI/API immediately if it does not improve clarity in the template
+
+#### Adding OpenTelemetry/ELK/Grafana to the core
+
+That should be an optional maturity layer, not a requirement of the base template.
+
+---
+
+## Real Priority Recommendations
+
+### Priority 1
+
+- Maintain and document the fine-grained access-module pattern so the template does not teach overly broad Nest couplings
+- Keep the guide to the boundaries between `common`, global `shared`, and `iam/shared`
+- Make sure the audit/documentation reflects the real state of the code
+
+### Priority 2
+
+- Strengthen the architecture test for `src/common` and `src/shared`
+- Evaluate hardening `passwordHash` on the `User` entity
+- Evaluate explicit validation of the runtime RLS role at startup
+
+### Priority 3
+
+- Harden the startup path and documentation of the new RBAC base
+- Leave business audit logs, domain events, and OpenTelemetry as a later growth phase
+
+---
+
+## Conclusion
+
+If the goal is a **balanced hexagonal backend API template**, this repository is on a very good path. The right next step is not to “add more architecture”, but to:
+
+1. refine composition and guardrails
+2. keep the documentation honest
+3. resist the temptation to make the template too enterprise too early
+
+Last review: 2026-04-01

@@ -16,8 +16,10 @@ import {
   MemberByIdNotFoundException,
   MemberNotFoundException,
 } from '../../../../../shared/domain/exceptions';
-
-const RLS_RUNTIME_ROLE = process.env.DB_RLS_RUNTIME_ROLE || 'hexagonal_app_runtime';
+import {
+  applyTypeormRlsContext,
+  withTypeormManager,
+} from '../../../../../../../common/infrastructure/database/typeorm/transaction/typeorm-rls.utils';
 
 @Injectable()
 export class MemberTypeOrmRepository implements MemberRepositoryPort {
@@ -58,11 +60,10 @@ export class MemberTypeOrmRepository implements MemberRepositoryPort {
       return operation(this.repository);
     }
 
-    return this.dataSource.transaction(async (manager) => {
-      await manager.query(`SET LOCAL ROLE ${RLS_RUNTIME_ROLE}`);
-      await manager.query(`SELECT set_config('app.current_organization_id', $1, true)`, [
-        organizationId,
-      ]);
+    return withTypeormManager(this.dataSource, async (manager) => {
+      await applyTypeormRlsContext(manager, {
+        'app.current_organization_id': organizationId,
+      });
 
       return operation(manager.getRepository(MemberTypeOrmEntity));
     });

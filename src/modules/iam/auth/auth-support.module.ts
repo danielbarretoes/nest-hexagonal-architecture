@@ -10,12 +10,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { getAuthRuntimeConfig } from '../../../config/auth/auth-runtime.config';
 import { getJwtConfig } from '../../../config/auth/jwt.config';
+import { ApiKeysAccessModule } from '../api-keys/api-keys-access.module';
 import { JWT_TOKEN_PORT } from './application/ports/jwt-token.token';
 import { PASSWORD_HASHER_PORT } from './application/ports/password-hasher.token';
 import { AUTH_SESSION_REPOSITORY_TOKEN } from './application/ports/auth-session-repository.token';
 import { USER_ACTION_TOKEN_REPOSITORY_TOKEN } from './application/ports/user-action-token-repository.token';
 import { JwtTokenAdapter } from './infrastructure/adapters/jwt-token.adapter';
 import { BcryptPasswordHasherAdapter } from './infrastructure/adapters/bcrypt-password-hasher.adapter';
+import { AccessAuthGuard } from './presentation/guards/access-auth.guard';
 import { AuthRateLimitGuard } from './presentation/guards/auth-rate-limit.guard';
 import { JwtAuthGuard } from './presentation/guards/jwt-auth.guard';
 import { AuthSessionTypeOrmEntity } from './infrastructure/persistence/typeorm/entities/auth-session.entity';
@@ -26,6 +28,7 @@ import { UserActionTokenTypeOrmRepository } from './infrastructure/persistence/t
 @Module({
   imports: [
     TypeOrmModule.forFeature([AuthSessionTypeOrmEntity, UserActionTokenTypeOrmEntity]),
+    ApiKeysAccessModule,
     ThrottlerModule.forRootAsync({
       useFactory: () => {
         const authConfig = getAuthRuntimeConfig();
@@ -62,14 +65,17 @@ import { UserActionTokenTypeOrmRepository } from './infrastructure/persistence/t
     BcryptPasswordHasherAdapter,
     AuthSessionTypeOrmRepository,
     UserActionTokenTypeOrmRepository,
+    AccessAuthGuard,
     AuthRateLimitGuard,
     JwtAuthGuard,
   ],
   exports: [
     JWT_TOKEN_PORT,
+    ApiKeysAccessModule,
     PASSWORD_HASHER_PORT,
     AUTH_SESSION_REPOSITORY_TOKEN,
     USER_ACTION_TOKEN_REPOSITORY_TOKEN,
+    AccessAuthGuard,
     AuthRateLimitGuard,
     JwtAuthGuard,
   ],

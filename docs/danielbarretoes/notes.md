@@ -1,10 +1,10 @@
 # Notes
 
-- Creo que no hace falta la carpeta shared dentro de iam, no es compartida la informacion, si los archivos pero los datos internos no.
+- I do not think the `shared` folder inside `iam` is strictly necessary. Files may be reused, but the internal data model is not really shared.
 
-- No me es suficiente roles hardcodeados, prefiero entidad roles para luego tener rights por modulo, no solo generalista. Y crear unos con seed base, eso si.
+- Hardcoded roles are not enough for me. I prefer a `roles` entity so permissions can be assigned per module instead of staying fully generic, with a small baseline seed.
 
 ## Ideas
 
-- Sistema de Auditoría (Audit Logs)
-- Soporte de OpenTelemetry para ELK o Grafana.
+- Audit logging system
+- OpenTelemetry support for ELK or Grafana
