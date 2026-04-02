@@ -12,7 +12,7 @@ import { TRANSACTION_RUNNER_PORT } from '../../../../../shared/application/ports
 import { createOpaqueToken } from '../../../../../shared/domain/security/opaque-token';
 import type { TransactionalEmailPort } from '../../../../../shared/domain/ports/transactional-email.port';
 import type { TransactionRunnerPort } from '../../../../../shared/domain/ports/transaction-runner.port';
-import { getAppConfig } from '../../../../../config/env/app-config';
+import { TRANSACTIONAL_EMAIL_DELIVERY_MODE } from '../../../../notifications/email/email.tokens';
 
 export interface RequestPasswordResetResponse {
   resetToken: string;
@@ -31,10 +31,12 @@ export class RequestPasswordResetUseCase {
     private readonly transactionalEmailPort: TransactionalEmailPort,
     @Inject(TRANSACTION_RUNNER_PORT)
     private readonly transactionRunner: TransactionRunnerPort,
+    @Inject(TRANSACTIONAL_EMAIL_DELIVERY_MODE)
+    private readonly emailDeliveryMode: 'sync' | 'async',
   ) {}
 
   async execute(email: string): Promise<RequestPasswordResetResponse> {
-    if (getAppConfig().jobs.emailDeliveryMode === 'async') {
+    if (this.emailDeliveryMode === 'async') {
       return this.transactionRunner.runInTransaction(async () => {
         const preparedReset = await this.preparePasswordReset(email);
 

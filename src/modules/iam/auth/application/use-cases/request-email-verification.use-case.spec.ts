@@ -39,6 +39,7 @@ describe('RequestEmailVerificationUseCase', () => {
       { hash } as never,
       { send } as never,
       { runInTransaction } as never,
+      'sync',
     );
 
     const response = await useCase.execute(user.id);

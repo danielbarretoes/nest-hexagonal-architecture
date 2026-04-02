@@ -7,6 +7,7 @@ import type { AdminAuditPort } from '../../../../../shared/domain/ports/admin-au
 import type { TransactionRunnerPort } from '../../../../../shared/domain/ports/transaction-runner.port';
 import type { WebhookEventPublisherPort } from '../../../../../shared/domain/ports/webhook-event-publisher.port';
 import { InvalidApiKeyScopesException } from '../../../shared/domain/exceptions';
+import type { ApiKeysRuntimeOptions } from '../ports/api-keys-runtime-options.token';
 
 describe('CreateApiKeyUseCase', () => {
   const create = jest.fn();
@@ -45,6 +46,11 @@ describe('CreateApiKeyUseCase', () => {
   const webhookEventPublisher: WebhookEventPublisherPort = {
     publish,
   };
+  const apiKeysRuntimeOptions: ApiKeysRuntimeOptions = {
+    nodeEnv: 'test',
+    defaultTtlDays: 30,
+    usageWriteIntervalMs: 60_000,
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -68,6 +74,7 @@ describe('CreateApiKeyUseCase', () => {
       adminAuditPort,
       transactionRunner,
       webhookEventPublisher,
+      apiKeysRuntimeOptions,
     );
 
     const response = await useCase.execute({
@@ -101,6 +108,7 @@ describe('CreateApiKeyUseCase', () => {
       adminAuditPort,
       transactionRunner,
       webhookEventPublisher,
+      apiKeysRuntimeOptions,
     );
 
     await expect(

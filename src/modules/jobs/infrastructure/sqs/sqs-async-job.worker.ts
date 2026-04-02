@@ -133,7 +133,15 @@ export class SqsAsyncJobWorker implements OnModuleDestroy {
       throw new NonRetryableJobError('Invalid async job envelope');
     }
 
-    if (parsed.version !== 1 || !parsed.jobId || !parsed.type) {
+    if (
+      parsed.version !== 1 ||
+      typeof parsed.jobId !== 'string' ||
+      typeof parsed.type !== 'string' ||
+      typeof parsed.publishedAt !== 'string' ||
+      (parsed.traceId !== undefined &&
+        parsed.traceId !== null &&
+        typeof parsed.traceId !== 'string')
+    ) {
       throw new NonRetryableJobError('Invalid async job envelope');
     }
 
@@ -142,7 +150,7 @@ export class SqsAsyncJobWorker implements OnModuleDestroy {
       version: 1,
       type: parsed.type,
       payload: parsed.payload,
-      publishedAt: parsed.publishedAt ?? new Date().toISOString(),
+      publishedAt: parsed.publishedAt,
       traceId: parsed.traceId ?? null,
     };
   }

@@ -38,6 +38,7 @@ describe('RegisterUserUseCase', () => {
       { hash } as never,
       { send } as never,
       { runInTransaction } as never,
+      'sync',
     );
 
     const user = await useCase.execute({

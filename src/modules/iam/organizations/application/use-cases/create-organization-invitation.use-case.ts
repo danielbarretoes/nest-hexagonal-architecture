@@ -29,7 +29,7 @@ import {
   OrganizationNotFoundException,
   RoleNotFoundException,
 } from '../../../shared/domain/exceptions';
-import { getAppConfig } from '../../../../../config/env/app-config';
+import { TRANSACTIONAL_EMAIL_DELIVERY_MODE } from '../../../../notifications/email/email.tokens';
 
 export interface CreateOrganizationInvitationCommand {
   organizationId: string;
@@ -65,12 +65,14 @@ export class CreateOrganizationInvitationUseCase {
     private readonly transactionRunner: TransactionRunnerPort,
     @Inject(WEBHOOK_EVENT_PUBLISHER_PORT)
     private readonly webhookEventPublisher: WebhookEventPublisherPort,
+    @Inject(TRANSACTIONAL_EMAIL_DELIVERY_MODE)
+    private readonly emailDeliveryMode: 'sync' | 'async',
   ) {}
 
   async execute(
     command: CreateOrganizationInvitationCommand,
   ): Promise<CreateOrganizationInvitationResponse> {
-    if (getAppConfig().jobs.emailDeliveryMode === 'async') {
+    if (this.emailDeliveryMode === 'async') {
       return this.transactionRunner.runInTransaction(async () => {
         const preparedInvitation = await this.prepareInvitation(command);
 

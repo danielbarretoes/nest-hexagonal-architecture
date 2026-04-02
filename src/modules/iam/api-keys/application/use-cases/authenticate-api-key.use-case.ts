@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { getAppConfig } from '../../../../../config/env/app-config';
 import { USER_REPOSITORY_TOKEN } from '../../../users/application/ports/user-repository.token';
 import type { UserRepositoryPort } from '../../../users/domain/ports/user.repository.port';
 import { MEMBER_REPOSITORY_TOKEN } from '../../../organizations/application/ports/member-repository.token';
@@ -10,6 +9,10 @@ import type {
 } from '../ports/api-key-authenticator.port';
 import { API_KEY_REPOSITORY_TOKEN } from '../ports/api-key-repository.token';
 import { API_KEY_SECRET_HASHER_TOKEN } from '../ports/api-key-secret-hasher.token';
+import {
+  API_KEYS_RUNTIME_OPTIONS,
+  type ApiKeysRuntimeOptions,
+} from '../ports/api-keys-runtime-options.token';
 import type { ApiKeyRepositoryPort } from '../../domain/ports/api-key.repository.port';
 import type { ApiKeySecretHasherPort } from '../../domain/ports/api-key-secret-hasher.port';
 import { parseApiKeyToken } from '../../domain/security/api-key-token';
@@ -25,6 +28,8 @@ export class AuthenticateApiKeyUseCase implements ApiKeyAuthenticatorPort {
     private readonly userRepository: UserRepositoryPort,
     @Inject(MEMBER_REPOSITORY_TOKEN)
     private readonly memberRepository: MemberRepositoryPort,
+    @Inject(API_KEYS_RUNTIME_OPTIONS)
+    private readonly apiKeysRuntimeOptions: ApiKeysRuntimeOptions,
   ) {}
 
   async authenticate(
@@ -66,7 +71,7 @@ export class AuthenticateApiKeyUseCase implements ApiKeyAuthenticatorPort {
       return null;
     }
 
-    if (apiKey.shouldRecordUsage(getAppConfig().apiKeys.usageWriteIntervalMs)) {
+    if (apiKey.shouldRecordUsage(this.apiKeysRuntimeOptions.usageWriteIntervalMs)) {
       await this.apiKeyRepository.update(apiKey.recordUsage(remoteIp));
     }
 

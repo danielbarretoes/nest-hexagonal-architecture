@@ -1,17 +1,22 @@
 import { OutboxCleanupService } from './outbox-cleanup.service';
 import { JobOutbox } from '../domain/entities/job-outbox.entity';
+import type { JobsRuntimeOptions } from './ports/jobs-runtime-options.token';
 
 describe('OutboxCleanupService', () => {
   const deleteByStatusOlderThan = jest.fn();
   const findByStatus = jest.fn();
+  const jobsRuntimeOptions: JobsRuntimeOptions = {
+    outboxMaxAttempts: 8,
+    outboxRetryBaseMs: 1000,
+    outboxRetryMaxMs: 60_000,
+    outboxCleanupBatchSize: 50,
+    outboxRetentionPublishedHours: 24,
+    outboxRetentionCompletedHours: 48,
+    outboxRetentionDeadHours: 72,
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.NODE_ENV = 'development';
-    process.env.JOBS_OUTBOX_CLEANUP_BATCH_SIZE = '50';
-    process.env.JOBS_OUTBOX_RETENTION_PUBLISHED_HOURS = '24';
-    process.env.JOBS_OUTBOX_RETENTION_COMPLETED_HOURS = '48';
-    process.env.JOBS_OUTBOX_RETENTION_DEAD_HOURS = '72';
   });
 
   it('deletes aged rows per terminal status using the configured retention windows', async () => {
@@ -20,10 +25,13 @@ describe('OutboxCleanupService', () => {
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(4);
 
-    const service = new OutboxCleanupService({
-      deleteByStatusOlderThan,
-      findByStatus,
-    } as never);
+    const service = new OutboxCleanupService(
+      {
+        deleteByStatusOlderThan,
+        findByStatus,
+      } as never,
+      jobsRuntimeOptions,
+    );
     const now = new Date('2026-04-01T12:00:00.000Z');
 
     const result = await service.cleanupOnce(now);
@@ -90,10 +98,13 @@ describe('OutboxCleanupService', () => {
       .mockResolvedValueOnce([oldCompleted])
       .mockResolvedValueOnce([oldDead]);
 
-    const service = new OutboxCleanupService({
-      deleteByStatusOlderThan,
-      findByStatus,
-    } as never);
+    const service = new OutboxCleanupService(
+      {
+        deleteByStatusOlderThan,
+        findByStatus,
+      } as never,
+      jobsRuntimeOptions,
+    );
 
     const preview = await service.previewCleanup(new Date('2026-04-01T12:00:00.000Z'));
 

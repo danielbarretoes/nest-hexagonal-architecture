@@ -49,6 +49,7 @@ describe('CreateOrganizationInvitationUseCase', () => {
       { send } as never,
       { runInTransaction } as never,
       { publish } as never,
+      'sync',
     );
 
     const response = await useCase.execute({

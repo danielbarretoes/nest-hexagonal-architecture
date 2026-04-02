@@ -5,6 +5,7 @@ import type { ApiKeyRepositoryPort } from '../../domain/ports/api-key.repository
 import type { ApiKeySecretHasherPort } from '../../domain/ports/api-key-secret-hasher.port';
 import type { UserRepositoryPort } from '../../../users/domain/ports/user.repository.port';
 import type { MemberRepositoryPort } from '../../../organizations/domain/ports/member.repository.port';
+import type { ApiKeysRuntimeOptions } from '../ports/api-keys-runtime-options.token';
 
 describe('AuthenticateApiKeyUseCase', () => {
   const findById = jest.fn();
@@ -43,6 +44,11 @@ describe('AuthenticateApiKeyUseCase', () => {
     update: jest.fn(),
     delete: jest.fn(),
   };
+  const apiKeysRuntimeOptions: ApiKeysRuntimeOptions = {
+    nodeEnv: 'test',
+    defaultTtlDays: 30,
+    usageWriteIntervalMs: 60_000,
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -54,6 +60,7 @@ describe('AuthenticateApiKeyUseCase', () => {
       apiKeySecretHasher,
       userRepository,
       memberRepository,
+      apiKeysRuntimeOptions,
     );
 
     await expect(useCase.authenticate('invalid-token')).resolves.toBeNull();
@@ -90,6 +97,7 @@ describe('AuthenticateApiKeyUseCase', () => {
       apiKeySecretHasher,
       userRepository,
       memberRepository,
+      apiKeysRuntimeOptions,
     );
 
     const result = await useCase.authenticate(token.token, '127.0.0.1');

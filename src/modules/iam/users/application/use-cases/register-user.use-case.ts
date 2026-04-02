@@ -3,7 +3,6 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
-import { getAppConfig } from '../../../../../config/env/app-config';
 import { TRANSACTION_RUNNER_PORT } from '../../../../../shared/application/ports/transaction-runner.token';
 import { User, CreateUserProps } from '../../domain/entities/user.entity';
 import type { UserRepositoryPort } from '../../domain/ports/user.repository.port';
@@ -14,6 +13,7 @@ import type { PasswordHasherPort } from '../../../shared/domain/ports/password-h
 import { PASSWORD_HASHER_PORT } from '../../../shared/application/ports/password-hasher.token';
 import type { TransactionalEmailPort } from '../../../../../shared/domain/ports/transactional-email.port';
 import type { TransactionRunnerPort } from '../../../../../shared/domain/ports/transaction-runner.port';
+import { TRANSACTIONAL_EMAIL_DELIVERY_MODE } from '../../../../notifications/email/email.tokens';
 
 export interface RegisterUserCommand {
   email: string;
@@ -33,10 +33,12 @@ export class RegisterUserUseCase {
     private readonly transactionalEmailPort: TransactionalEmailPort,
     @Inject(TRANSACTION_RUNNER_PORT)
     private readonly transactionRunner: TransactionRunnerPort,
+    @Inject(TRANSACTIONAL_EMAIL_DELIVERY_MODE)
+    private readonly emailDeliveryMode: 'sync' | 'async',
   ) {}
 
   async execute(command: RegisterUserCommand): Promise<User> {
-    const asyncEmailEnabled = getAppConfig().jobs.emailDeliveryMode === 'async';
+    const asyncEmailEnabled = this.emailDeliveryMode === 'async';
 
     if (asyncEmailEnabled) {
       return this.transactionRunner.runInTransaction(async () => {

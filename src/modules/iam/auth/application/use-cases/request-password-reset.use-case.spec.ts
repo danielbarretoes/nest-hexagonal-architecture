@@ -39,6 +39,7 @@ describe('RequestPasswordResetUseCase', () => {
       { hash } as never,
       { send } as never,
       { runInTransaction } as never,
+      'sync',
     );
 
     const response = await useCase.execute(user.email);

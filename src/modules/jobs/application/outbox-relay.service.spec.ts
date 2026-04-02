@@ -1,12 +1,22 @@
 import { JobOutboxRetryPolicyService } from './job-outbox-retry-policy.service';
 import { OutboxRelayService } from './outbox-relay.service';
 import { JobOutbox } from '../domain/entities/job-outbox.entity';
+import type { JobsRuntimeOptions } from './ports/jobs-runtime-options.token';
 
 describe('OutboxRelayService', () => {
   const findById = jest.fn();
   const claimPendingBatch = jest.fn();
   const update = jest.fn();
   const publish = jest.fn();
+  const jobsRuntimeOptions: JobsRuntimeOptions = {
+    outboxMaxAttempts: 8,
+    outboxRetryBaseMs: 1000,
+    outboxRetryMaxMs: 60_000,
+    outboxCleanupBatchSize: 50,
+    outboxRetentionPublishedHours: 24,
+    outboxRetentionCompletedHours: 48,
+    outboxRetentionDeadHours: 72,
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,7 +44,7 @@ describe('OutboxRelayService', () => {
     const service = new OutboxRelayService(
       jobOutboxRepository as never,
       asyncJobTransport,
-      new JobOutboxRetryPolicyService(),
+      new JobOutboxRetryPolicyService(jobsRuntimeOptions),
     );
 
     findById.mockResolvedValue(job);
@@ -76,7 +86,7 @@ describe('OutboxRelayService', () => {
         update,
       } as never,
       { publish } as never,
-      new JobOutboxRetryPolicyService(),
+      new JobOutboxRetryPolicyService(jobsRuntimeOptions),
     );
 
     findById.mockResolvedValue(job);

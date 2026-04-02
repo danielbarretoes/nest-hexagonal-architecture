@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { getAppConfig } from '../../../config/env/app-config';
 import type { JobOutboxStatus } from '../domain/entities/job-outbox.entity';
 import type { JobOutboxRepositoryPort } from '../domain/ports/job-outbox.repository.port';
 import { JOB_OUTBOX_REPOSITORY_TOKEN } from './ports/job-outbox-repository.token';
+import { JOBS_RUNTIME_OPTIONS, type JobsRuntimeOptions } from './ports/jobs-runtime-options.token';
 
 export interface OutboxCleanupResult {
   publishedDeleted: number;
@@ -20,11 +20,11 @@ export interface OutboxCleanupPreview {
 
 @Injectable()
 export class OutboxCleanupService {
-  private readonly jobsConfig = getAppConfig().jobs;
-
   constructor(
     @Inject(JOB_OUTBOX_REPOSITORY_TOKEN)
     private readonly jobOutboxRepository: JobOutboxRepositoryPort,
+    @Inject(JOBS_RUNTIME_OPTIONS)
+    private readonly jobsRuntimeOptions: JobsRuntimeOptions,
   ) {}
 
   async cleanupOnce(now = new Date()): Promise<OutboxCleanupResult> {
@@ -60,7 +60,7 @@ export class OutboxCleanupService {
     return this.jobOutboxRepository.deleteByStatusOlderThan(
       status,
       this.resolveCutoff(status, now),
-      this.jobsConfig.outboxCleanupBatchSize,
+      this.jobsRuntimeOptions.outboxCleanupBatchSize,
     );
   }
 
@@ -70,17 +70,17 @@ export class OutboxCleanupService {
     return [...jobs]
       .filter((job) => job.updatedAt < this.resolveCutoff(status, now))
       .sort((left, right) => left.updatedAt.getTime() - right.updatedAt.getTime())
-      .slice(0, this.jobsConfig.outboxCleanupBatchSize)
+      .slice(0, this.jobsRuntimeOptions.outboxCleanupBatchSize)
       .map((job) => job.id);
   }
 
   private resolveCutoff(status: JobOutboxStatus, now: Date): Date {
     const retentionHours =
       status === 'published'
-        ? this.jobsConfig.outboxRetentionPublishedHours
+        ? this.jobsRuntimeOptions.outboxRetentionPublishedHours
         : status === 'completed'
-          ? this.jobsConfig.outboxRetentionCompletedHours
-          : this.jobsConfig.outboxRetentionDeadHours;
+          ? this.jobsRuntimeOptions.outboxRetentionCompletedHours
+          : this.jobsRuntimeOptions.outboxRetentionDeadHours;
 
     return new Date(now.getTime() - retentionHours * 60 * 60 * 1000);
   }

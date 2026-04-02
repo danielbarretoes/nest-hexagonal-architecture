@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { getAppConfig } from '../../../../../config/env/app-config';
 import { ADMIN_AUDIT_PORT } from '../../../../../shared/application/ports/admin-audit.token';
 import { TRANSACTION_RUNNER_PORT } from '../../../../../shared/application/ports/transaction-runner.token';
 import { WEBHOOK_EVENT_PUBLISHER_PORT } from '../../../../../shared/application/ports/webhook-event-publisher.token';
@@ -10,6 +9,10 @@ import type { WebhookEventPublisherPort } from '../../../../../shared/domain/por
 import { WEBHOOK_EVENT_TYPES } from '../../../../../shared/domain/integration-events/webhook-event-types';
 import { MEMBER_REPOSITORY_TOKEN } from '../../../organizations/application/ports/member-repository.token';
 import type { MemberRepositoryPort } from '../../../organizations/domain/ports/member.repository.port';
+import {
+  API_KEYS_RUNTIME_OPTIONS,
+  type ApiKeysRuntimeOptions,
+} from '../ports/api-keys-runtime-options.token';
 import { API_KEY_REPOSITORY_TOKEN } from '../ports/api-key-repository.token';
 import { API_KEY_SECRET_HASHER_TOKEN } from '../ports/api-key-secret-hasher.token';
 import type { ApiKeyRepositoryPort } from '../../domain/ports/api-key.repository.port';
@@ -51,6 +54,8 @@ export class CreateApiKeyUseCase {
     private readonly transactionRunner: TransactionRunnerPort,
     @Inject(WEBHOOK_EVENT_PUBLISHER_PORT)
     private readonly webhookEventPublisher: WebhookEventPublisherPort,
+    @Inject(API_KEYS_RUNTIME_OPTIONS)
+    private readonly apiKeysRuntimeOptions: ApiKeysRuntimeOptions,
   ) {}
 
   async execute(command: CreateApiKeyCommand): Promise<CreateApiKeyResponse> {
@@ -74,8 +79,8 @@ export class CreateApiKeyUseCase {
         throw new InvalidApiKeyScopesException();
       }
 
-      const tokenParts = createApiKeyToken(getAppConfig().nodeEnv);
-      const expiresInDays = command.expiresInDays ?? getAppConfig().apiKeys.defaultTtlDays;
+      const tokenParts = createApiKeyToken(this.apiKeysRuntimeOptions.nodeEnv);
+      const expiresInDays = command.expiresInDays ?? this.apiKeysRuntimeOptions.defaultTtlDays;
       const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
       const apiKey = ApiKey.create({
         id: tokenParts.id,
